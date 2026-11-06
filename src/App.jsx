@@ -340,6 +340,19 @@ const permisosRecepcionista = {
   Servicios: { visualizar: true },
 }
 
+const permisosTecnicoMantenimiento = {
+  Habitaciones: { visualizar: true },
+  Mantenimiento: { visualizar: true, registrar: true, editar: true },
+}
+
+const permisosPorCargoEmpleado = {
+  Recepcionista: permisosRecepcionista,
+  'Técnico de mantenimiento': permisosTecnicoMantenimiento,
+}
+
+const moduloInicialEmpleado = cargoNombre =>
+  Object.entries(permisosPorCargoEmpleado[cargoNombre] ?? {}).find(([, permiso]) => permiso.visualizar)?.[0] ?? 'Habitaciones'
+
 function SortableHeader({ label, field, sort, onSort }) {
   const active = sort?.field === field
   const direction = active ? sort.direction : null
@@ -547,8 +560,9 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
   }
 
   function continueEmployeeAccess() {
-    if (verifiedEmployee?.cargo?.nombre !== 'Recepcionista') {
-      setEmployeeContinueError('En esta etapa, el entorno operativo solo está habilitado para el cargo Recepcionista.')
+    const cargoEmpleado = verifiedEmployee?.cargo?.nombre
+    if (!permisosPorCargoEmpleado[cargoEmpleado]) {
+      setEmployeeContinueError('El entorno operativo todavía no está habilitado para el cargo de este empleado.')
       return
     }
     if (!verifiedEmployee.hotel) {
@@ -885,14 +899,14 @@ function App() {
     'Mantenimiento',
   ]
 
-  const permisosActivosEmpleado = employeeSession?.cargo?.nombre === 'Recepcionista' ? permisosRecepcionista : {}
+  const permisosActivosEmpleado = employeeSession ? permisosPorCargoEmpleado[employeeSession.cargo?.nombre] ?? {} : {}
   const puedeVerModulo = modulo => !employeeSession || Boolean(permisosActivosEmpleado[modulo]?.visualizar)
   const puedeCrearEnModulo = modulo => !employeeSession || Boolean(permisosActivosEmpleado[modulo]?.registrar)
   const puedeEditarEnModulo = modulo => !employeeSession || Boolean(permisosActivosEmpleado[modulo]?.editar)
   const puedeEliminarEnModulo = () => !employeeSession
   const puedeCancelarReservas = () => !employeeSession || Boolean(permisosActivosEmpleado.Reservas?.cancelar)
   const opcionesMenu = employeeSession
-    ? ['Reservas', 'Habitaciones', 'Clientes', 'Consumos', 'Pagos'].filter(modulo => puedeVerModulo(modulo))
+    ? ['Reservas', 'Habitaciones', 'Clientes', 'Consumos', 'Pagos', 'Mantenimiento'].filter(modulo => puedeVerModulo(modulo))
     : opcionesMenuAdministrativas
 
   // ==========================================
@@ -910,6 +924,8 @@ function App() {
     ? habitaciones.filter(habitacion => Number(habitacion.hotel_id_hotel) === hotelSesionId)
     : habitaciones
   const habitacionEnHotelSesion = habitacionId => habitacionesVisibles.some(habitacion => Number(habitacion.id) === Number(habitacionId))
+  const mantenimientoEnHotelSesion = mantenimiento => habitacionEnHotelSesion(mantenimiento.habitacion_id_habitacion)
+  const mantenimientosVisibles = employeeSession ? mantenimientos.filter(mantenimientoEnHotelSesion) : mantenimientos
   const reservaEnHotelSesion = reserva => habitacionEnHotelSesion(reserva.habitacion_id_habitacion)
   const reservasVisibles = employeeSession ? reservas.filter(reservaEnHotelSesion) : reservas
   const reservaIdsVisibles = new Set(reservasVisibles.map(reserva => Number(reserva.id_reserva)))
@@ -2198,14 +2214,14 @@ function App() {
   // ==========================================
 
   const obtenerHabitacionMantenimiento = mantenimiento =>
-    habitaciones.find(habitacion => Number(habitacion.id) === Number(mantenimiento.habitacion_id_habitacion))
+    habitacionesVisibles.find(habitacion => Number(habitacion.id) === Number(mantenimiento.habitacion_id_habitacion))
 
   const obtenerEmpleadoMantenimiento = mantenimiento =>
-    empleados.find(empleado => Number(empleado.id) === Number(mantenimiento.empleado_id_empleado))
+    empleadosDelHotel.find(empleado => Number(empleado.id) === Number(mantenimiento.empleado_id_empleado))
 
   function abrirRegistroMantenimiento() {
-    if (employeeSession) return
-    if (!habitaciones.length || !empleados.length) return
+    if (!puedeCrearEnModulo('Mantenimiento')) return
+    if (!habitacionesVisibles.length || !empleadosDelHotel.length) return
     setMantenimientoEnEdicion(null)
     setFormularioMantenimiento({ fecha_inicio: new Date().toISOString().slice(0, 10), tipo: '', costo: '', habitacion_id_habitacion: '', empleado_id_empleado: '' })
     setErrorMantenimiento('')
@@ -2213,7 +2229,7 @@ function App() {
   }
 
   function abrirEdicionMantenimiento(mantenimiento) {
-    if (employeeSession) return
+    if (!puedeEditarEnModulo('Mantenimiento') || !mantenimientosVisibles.some(item => Number(item.id_mantenimiento) === Number(mantenimiento.id_mantenimiento))) return
     setMantenimientoEnEdicion(mantenimiento)
     setFormularioMantenimiento({
       fecha_inicio: mantenimiento.fecha_inicio,
@@ -2228,14 +2244,16 @@ function App() {
 
   function guardarMantenimiento(evento) {
     evento.preventDefault()
-    if (employeeSession) return
+    if (mantenimientoEnEdicion
+      ? !puedeEditarEnModulo('Mantenimiento') || !mantenimientosVisibles.some(item => Number(item.id_mantenimiento) === Number(mantenimientoEnEdicion.id_mantenimiento))
+      : !puedeCrearEnModulo('Mantenimiento')) return
     const tipo = formularioMantenimiento.tipo.trim()
     const costoTexto = formularioMantenimiento.costo.trim()
     const costo = Number(costoTexto)
     const habitacionId = Number(formularioMantenimiento.habitacion_id_habitacion)
     const empleadoId = Number(formularioMantenimiento.empleado_id_empleado)
-    const habitacionExiste = habitaciones.some(habitacion => Number(habitacion.id) === habitacionId)
-    const empleadoExiste = empleados.some(empleado => Number(empleado.id) === empleadoId)
+    const habitacionExiste = habitacionesVisibles.some(habitacion => Number(habitacion.id) === habitacionId)
+    const empleadoExiste = empleadosDelHotel.some(empleado => Number(empleado.id) === empleadoId)
     const fecha = new Date(`${formularioMantenimiento.fecha_inicio}T00:00:00`)
     const fechaValida = Boolean(formularioMantenimiento.fecha_inicio)
       && !Number.isNaN(fecha.getTime())
@@ -2279,7 +2297,7 @@ function App() {
     setMantenimientoPorEliminar(null)
   }
 
-  const mantenimientosFiltrados = mantenimientos.filter(mantenimiento => {
+  const mantenimientosFiltrados = mantenimientosVisibles.filter(mantenimiento => {
     const texto = busquedaMantenimiento.trim().toLowerCase()
     const habitacion = obtenerHabitacionMantenimiento(mantenimiento)
     const empleado = obtenerEmpleadoMantenimiento(mantenimiento)
@@ -2373,10 +2391,10 @@ function App() {
 
           <div className="rooms-subnav" role="tablist" aria-label="Secciones de habitaciones">
             <button type="button" role="tab" aria-selected={subseccionHabitaciones === 'habitaciones'} className={subseccionHabitaciones === 'habitaciones' ? 'active' : ''} onClick={() => setSubseccionHabitaciones('habitaciones')}>Habitaciones</button>
-            <button type="button" role="tab" aria-selected={subseccionHabitaciones === 'tipos'} className={subseccionHabitaciones === 'tipos' ? 'active' : ''} onClick={() => setSubseccionHabitaciones('tipos')}>Tipos de habitación</button>
+            {puedeVerModulo('Tipos de habitación') && <button type="button" role="tab" aria-selected={subseccionHabitaciones === 'tipos'} className={subseccionHabitaciones === 'tipos' ? 'active' : ''} onClick={() => setSubseccionHabitaciones('tipos')}>Tipos de habitación</button>}
           </div>
 
-          {subseccionHabitaciones === 'habitaciones' && <>
+          {(subseccionHabitaciones === 'habitaciones' || (subseccionHabitaciones === 'tipos' && !puedeVerModulo('Tipos de habitación'))) && <>
           <div className="room-summary rooms-modern-summary">
             <article className="room-summary-card reservation-stat reservation-stat-total">
               <div className="reservation-stat-top"><span>Total de habitaciones</span><span className="reservation-stat-icon">▤</span></div>
@@ -2431,7 +2449,7 @@ function App() {
           </div>
           </>}
 
-          {subseccionHabitaciones === 'tipos' && <>
+          {subseccionHabitaciones === 'tipos' && puedeVerModulo('Tipos de habitación') && <>
             <div className="room-summary rooms-modern-summary types-room-summary">
                 <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Tipos registrados</span><span className="reservation-stat-icon">▤</span></div><h2>{tiposHabitacion.length}</h2><small>Registros en TIPO_HABITACION</small></article>
                 <article className="room-summary-card reservation-stat rooms-stat-available"><div className="reservation-stat-top"><span>Tipos en uso</span><span className="reservation-stat-icon">⌂</span></div><h2>{tiposHabitacion.filter(tipo => habitaciones.some(habitacion => Number(habitacion.tipo_habitacion_id_tipo) === Number(tipo.id_tipo))).length}</h2><small>Con habitaciones relacionadas</small></article>
@@ -3559,32 +3577,32 @@ function App() {
     // ========================================
 
     if (seccionActiva === 'Mantenimiento') {
-      const costoTotalMantenimiento = mantenimientos.reduce((total, item) => total + Number(item.costo), 0)
+      const costoTotalMantenimiento = mantenimientosVisibles.reduce((total, item) => total + Number(item.costo), 0)
       return (
         <section className="rooms-section reservations-section maintenance-section">
           <div className="reservations-heading">
             <div className="welcome">
               <span className="reservations-eyebrow">GESTIÓN HOTELERA</span>
               <h1>Gestión de mantenimiento</h1>
-              <p>Consulta y administra los mantenimientos del hotel.</p>
+              <p>{employeeSession ? 'Consulta y administra los mantenimientos de ' + employeeSession.hotel.nombre + '.' : 'Consulta y administra los mantenimientos del hotel.'}</p>
             </div>
             <div className="reservations-heading-note">
               <span className="reservations-note-icon">▦</span>
-              <div><strong>{mantenimientos.length} registros</strong><span>Mantenimientos en el sistema</span></div>
+              <div><strong>{mantenimientosVisibles.length} registros</strong><span>Mantenimientos en el sistema</span></div>
             </div>
           </div>
 
           <div className="room-summary rooms-modern-summary maintenance-modern-summary">
-            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de mantenimientos</span><span className="reservation-stat-icon">⚒</span></div><h2>{mantenimientos.length}</h2><small>Registros en MANTENIMIENTO</small></article>
+            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de mantenimientos</span><span className="reservation-stat-icon">⚒</span></div><h2>{mantenimientosVisibles.length}</h2><small>Registros en MANTENIMIENTO</small></article>
             <article className="room-summary-card reservation-stat maintenance-stat-cost"><div className="reservation-stat-top"><span>Costo total</span><span className="reservation-stat-icon">S/</span></div><h2>S/ {costoTotalMantenimiento.toFixed(2)}</h2><small>Costo registrado</small></article>
-            <article className="room-summary-card reservation-stat maintenance-stat-average"><div className="reservation-stat-top"><span>Costo promedio</span><span className="reservation-stat-icon">↗</span></div><h2>S/ {(costoTotalMantenimiento / (mantenimientos.length || 1)).toFixed(2)}</h2><small>Promedio por registro</small></article>
+            <article className="room-summary-card reservation-stat maintenance-stat-average"><div className="reservation-stat-top"><span>Costo promedio</span><span className="reservation-stat-icon">↗</span></div><h2>S/ {(costoTotalMantenimiento / (mantenimientosVisibles.length || 1)).toFixed(2)}</h2><small>Promedio por registro</small></article>
             <article className="room-summary-card reservation-stat maintenance-stat-results"><div className="reservation-stat-top"><span>Resultados encontrados</span><span className="reservation-stat-icon">⌕</span></div><h2>{mantenimientosFiltrados.length}</h2><small>Coincidencias de búsqueda</small></article>
           </div>
 
           <div className="room-list reservations-list rooms-modern-list maintenance-list">
             <div className="room-list-header reservations-list-header">
               <div><h2>Listado de mantenimientos</h2><p>Administra los registros de la tabla MANTENIMIENTO.</p></div>
-              <div className="reservations-header-actions"><span className="reservations-total-pill">{mantenimientosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroMantenimiento} disabled={!habitacionesVisibles.length || !empleadosDelHotel.length} title={!habitacionesVisibles.length || !empleadosDelHotel.length ? 'Registra al menos una habitación y un empleado.' : 'Registrar mantenimiento'}>＋ Nuevo mantenimiento</button></div>
+              <div className="reservations-header-actions"><span className="reservations-total-pill">{mantenimientosFiltrados.length} resultados</span>{puedeCrearEnModulo('Mantenimiento') && <button type="button" className="reservation-new-button" onClick={abrirRegistroMantenimiento} disabled={!habitacionesVisibles.length || !empleadosDelHotel.length} title={!habitacionesVisibles.length || !empleadosDelHotel.length ? 'Registra al menos una habitación y un empleado.' : 'Registrar mantenimiento'}>＋ Nuevo mantenimiento</button>}</div>
             </div>
             <DynamicListFilterPanel title="Mantenimiento" listKey="mantenimientos" searchValue={busquedaMantenimiento} searchPlaceholder="Buscar por ID, fecha, tipo, costo, habitación o empleado..." attributes={atributosFiltroMantenimiento} activeFilters={obtenerFiltrosActivosLista('mantenimientos')} onSearchChange={valor => actualizarFiltroLista('mantenimientos', setBusquedaMantenimiento, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaMantenimiento(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
@@ -3593,17 +3611,17 @@ function App() {
                 <tbody>
                   {mantenimientosPagina.rows.map(mantenimiento => <tr key={mantenimiento.id_mantenimiento}>
                     <td>{mantenimiento.id_mantenimiento}</td><td>{formatearFechaReserva(mantenimiento.fecha_inicio)}</td><td><strong>{mantenimiento.tipo}</strong></td><td>S/ {Number(mantenimiento.costo).toFixed(2)}</td>
-                    <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setMantenimientoSeleccionado(mantenimiento)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={Boolean(employeeSession)} onClick={() => abrirEdicionMantenimiento(mantenimiento)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => setMantenimientoPorEliminar(mantenimiento)}>Eliminar</button></div></td>
+                    <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setMantenimientoSeleccionado(mantenimiento)}>Ver detalle</button>{puedeEditarEnModulo('Mantenimiento') && <button type="button" className="reservation-edit-button" onClick={() => abrirEdicionMantenimiento(mantenimiento)}>Editar</button>}{puedeEliminarEnModulo() && <button type="button" className="reservation-cancel-record-button" onClick={() => setMantenimientoPorEliminar(mantenimiento)}>Eliminar</button>}</div></td>
                   </tr>)}
                   {mantenimientosFiltrados.length === 0 && <tr><td colSpan="5" className="empty-message">No se encontraron mantenimientos con ese criterio.</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="reservations-list-footer"><span>Mostrando {mantenimientosFiltrados.length} de {mantenimientos.length} mantenimientos</span><span>Tabla MANTENIMIENTO del modelo relacional</span></div>
+            <div className="reservations-list-footer"><span>Mostrando {mantenimientosFiltrados.length} de {mantenimientosVisibles.length} mantenimientos</span><span>Tabla MANTENIMIENTO del modelo relacional</span></div>
               <ListPagination totalItems={mantenimientosFiltrados.length} {...mantenimientosPagina} onPageChange={pagina => cambiarPaginaLista('mantenimientos', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('mantenimientos', tamano)} />
           </div>
 
-          {mostrarModalMantenimiento && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalMantenimiento(false) }}>
+          {mostrarModalMantenimiento && (mantenimientoEnEdicion ? puedeEditarEnModulo('Mantenimiento') : puedeCrearEnModulo('Mantenimiento')) && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalMantenimiento(false) }}>
             <section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="maintenance-form-title">
               <div className="reservation-modal-header"><div><span className="reservations-eyebrow">{mantenimientoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="maintenance-form-title">{mantenimientoEnEdicion ? `Editar mantenimiento ${mantenimientoEnEdicion.id_mantenimiento}` : 'Registrar mantenimiento'}</h2><p>Completa los atributos y selecciona la habitación y el empleado relacionados.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalMantenimiento(false)} aria-label="Cerrar ventana">×</button></div>
               <form onSubmit={guardarMantenimiento}><div className="reservation-form-grid">
@@ -3634,7 +3652,7 @@ function App() {
                   <article className="reservation-detail-group"><h3>Habitación relacionada</h3><div className="reservation-detail-item"><span>HABITACION_ID_HABITACION (FK)</span><strong>{mantenimiento.habitacion_id_habitacion}</strong></div><div className="reservation-detail-item"><span>Número</span><strong>{mostrarDato(habitacion?.numero)}</strong></div><div className="reservation-detail-item"><span>Piso</span><strong>{mostrarDato(habitacion?.piso)}</strong></div><div className="reservation-detail-item"><span>Estado</span><strong>{mostrarDato(habitacion?.estado)}</strong></div><div className="reservation-detail-item"><span>Tipo de habitación</span><strong>{mostrarDato(tipoHabitacion?.nombre)}</strong></div><div className="reservation-detail-item"><span>Hotel</span><strong>{mostrarDato(hotelHabitacion?.nombre)}</strong></div></article>
                   <article className="reservation-detail-group"><h3>Empleado responsable</h3><div className="reservation-detail-item"><span>EMPLEADO_ID_EMPLEADO (FK)</span><strong>{mantenimiento.empleado_id_empleado}</strong></div><div className="reservation-detail-item"><span>Nombre</span><strong>{empleado ? `${empleado.nombre} ${empleado.apellido}` : 'Empleado no encontrado'}</strong></div><div className="reservation-detail-item"><span>Documento</span><strong>{mostrarDato(empleado?.documento)}</strong></div><div className="reservation-detail-item"><span>Fecha de ingreso</span><strong>{empleado?.fechaIngreso ? formatearFechaReserva(empleado.fechaIngreso) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Cargo</span><strong>{mostrarDato(cargoEmpleado?.nombre)}</strong></div><div className="reservation-detail-item"><span>Hotel</span><strong>{mostrarDato(hotelEmpleado?.nombre)}</strong></div></article>
                 </div>
-                <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMantenimientoSeleccionado(null)}>Cerrar detalle</button><button type="button" className="reservation-save-button" onClick={() => { const actual = mantenimientoSeleccionado; setMantenimientoSeleccionado(null); abrirEdicionMantenimiento(actual) }}>Editar mantenimiento</button></div>
+                <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMantenimientoSeleccionado(null)}>Cerrar detalle</button>{puedeEditarEnModulo('Mantenimiento') && <button type="button" className="reservation-save-button" onClick={() => { const actual = mantenimientoSeleccionado; setMantenimientoSeleccionado(null); abrirEdicionMantenimiento(actual) }}>Editar mantenimiento</button>}</div>
               </section>
             </div>
           })()}
@@ -4006,7 +4024,7 @@ function App() {
 
   return (
     <>
-      <WelcomeScreen empleados={empleados} cargos={cargos} hoteles={hoteles} isAdminAuthenticated={adminAuthenticated} employeeSession={employeeSession} onAdminAuthenticated={() => setAdminAuthenticated(true)} onEmployeeContinue={session => { setEmployeeSession(session); setSeccionActiva('Reservas') }} />
+      <WelcomeScreen empleados={empleados} cargos={cargos} hoteles={hoteles} isAdminAuthenticated={adminAuthenticated} employeeSession={employeeSession} onAdminAuthenticated={() => setAdminAuthenticated(true)} onEmployeeContinue={session => { setEmployeeSession(session); setSeccionActiva(moduloInicialEmpleado(session.cargo?.nombre)) }} />
       <div className="app welcome-covered-app" aria-hidden={!adminAuthenticated && !employeeSession} inert={!adminAuthenticated && !employeeSession}>
 
       <aside className="sidebar">
