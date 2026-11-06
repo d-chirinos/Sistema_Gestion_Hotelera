@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 // ==========================================
@@ -431,6 +431,196 @@ function DetailRelatedRecords({ title, rows, columns, emptyMessage }) {
   )
 }
 
+function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, onAdminAuthenticated }) {
+  const [phase, setPhase] = useState('intro')
+  const [screen, setScreen] = useState('selection')
+  const [employeeId, setEmployeeId] = useState('')
+  const [employeeDocument, setEmployeeDocument] = useState('')
+  const [employeeError, setEmployeeError] = useState('')
+  const [verifiedEmployee, setVerifiedEmployee] = useState(null)
+  const [showEmployeeDocument, setShowEmployeeDocument] = useState(false)
+  const [adminUsername, setAdminUsername] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminMessage, setAdminMessage] = useState('')
+  const [showAdminPassword, setShowAdminPassword] = useState(false)
+
+  useEffect(() => {
+    const transitionTimer = window.setTimeout(() => setPhase('transition'), 1900)
+    const readyTimer = window.setTimeout(() => setPhase('ready'), 3000)
+
+    return () => {
+      window.clearTimeout(transitionTimer)
+      window.clearTimeout(readyTimer)
+    }
+  }, [])
+
+  const options = [
+    {
+      id: 'admin',
+      title: 'Administrador',
+      description: 'Entorno de administración general de HotelManager.',
+      icon: (
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M8 40V15l16-8 16 8v25M17 40V26h14v14M15 18h.01M24 18h.01M33 18h.01" />
+          <path d="M5 40h38" />
+        </svg>
+      ),
+    },
+    {
+      id: 'employee',
+      title: 'Empleado',
+      description: 'Entorno operativo según el cargo asignado.',
+      icon: (
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="16" r="8" />
+          <path d="M9 41c1.6-8.1 7-12 15-12s13.4 3.9 15 12" />
+        </svg>
+      ),
+    },
+  ]
+
+  function openAccess(access) {
+    setScreen(access)
+    setEmployeeError('')
+    setAdminMessage('')
+    setVerifiedEmployee(null)
+  }
+
+  function returnToOptions() {
+    setScreen('selection')
+    setEmployeeId('')
+    setEmployeeDocument('')
+    setEmployeeError('')
+    setVerifiedEmployee(null)
+    setShowEmployeeDocument(false)
+    setAdminUsername('')
+    setAdminPassword('')
+    setAdminMessage('')
+    setShowAdminPassword(false)
+  }
+
+  function validateEmployeeAccess(event) {
+    event.preventDefault()
+    const submittedId = employeeId.trim()
+    const submittedDocument = employeeDocument.trim()
+    const employee = empleados.find(item =>
+      String(item.id ?? item.id_empleado) === submittedId
+      && String(item.documento ?? '').trim() === submittedDocument
+    )
+
+    if (!employee) {
+      setEmployeeError('El ID del empleado o el documento no coinciden. Verifica los datos e inténtalo de nuevo.')
+      setVerifiedEmployee(null)
+      return
+    }
+
+    const hotel = hoteles.find(item => Number(item.id_hotel) === Number(employee.hotel_id_hotel)) ?? null
+    const cargo = cargos.find(item => Number(item.id_cargo) === Number(employee.cargo_id_cargo)) ?? null
+    setEmployeeError('')
+    setVerifiedEmployee({ employee, hotel, cargo })
+    setScreen('employee-verified')
+  }
+
+  function submitAdminAccess(event) {
+    event.preventDefault()
+    if (adminUsername.trim() !== 'admin' || adminPassword !== '123456') {
+      setAdminMessage('El usuario o la contraseña son incorrectos. Verifica tus credenciales e inténtalo de nuevo.')
+      return
+    }
+
+    setAdminMessage('')
+    onAdminAuthenticated()
+  }
+
+  function renderAccessIcon(id) {
+    return options.find(option => option.id === id)?.icon ?? options[1].icon
+  }
+
+  if (isAdminAuthenticated) return null
+
+  return (
+    <main className={`welcome-screen welcome-screen--${phase}`} aria-label={screen === 'selection' ? 'Bienvenida a HotelManager' : `Acceso ${screen.startsWith('employee') ? 'de empleado' : 'de administrador'}`}>
+      <div className="welcome-brand" aria-label="HotelManager">
+        <span className="welcome-brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 56 56">
+            <path d="M9 48V18L28 7l19 11v30M18 48V31h20v17M17 21h.01M28 21h.01M39 21h.01" />
+            <path d="M5 48h46M28 31v17" />
+          </svg>
+        </span>
+        <span className="welcome-brand-name">Hotel<span>Manager</span></span>
+      </div>
+
+      {phase !== 'intro' && (
+        <section className={`welcome-access welcome-access--${screen}`} key={screen} aria-labelledby="welcome-title">
+          {screen === 'selection' && <>
+            <p className="welcome-eyebrow">GESTIÓN HOTELERA</p>
+            <h1 id="welcome-title">Bienvenido a HotelManager</h1>
+            <p className="welcome-subtitle">Selecciona el tipo de acceso para continuar.</p>
+
+            <div className="welcome-options">
+              {options.map(option => (
+                <button key={option.id} type="button" className="welcome-option" onClick={() => openAccess(option.id)}>
+                  <span className={`welcome-option-icon welcome-option-icon--${option.id}`}>{option.icon}</span>
+                  <span className="welcome-option-copy">
+                    <strong>{option.title}</strong>
+                    <span>{option.description}</span>
+                  </span>
+                  <span className="welcome-option-action">Continuar <span aria-hidden="true">→</span></span>
+                </button>
+              ))}
+            </div>
+
+            <p className="welcome-note">El acceso y la autenticación se habilitarán en una siguiente etapa.</p>
+          </>}
+
+          {(screen === 'employee' || screen === 'admin') && <div className="welcome-form-card">
+            <button type="button" className="welcome-back-button" onClick={returnToOptions}>← Volver a la bienvenida</button>
+            <div className="welcome-form-heading">
+              <span className={`welcome-option-icon welcome-option-icon--${screen}`}>{renderAccessIcon(screen)}</span>
+              <div>
+                <p className="welcome-form-eyebrow">ACCESO {screen === 'employee' ? 'DE EMPLEADO' : 'ADMINISTRADOR GENERAL'}</p>
+                <h1 id="welcome-title">{screen === 'employee' ? 'Iniciar sesión como empleado' : 'Administrador general'}</h1>
+              </div>
+            </div>
+
+            {screen === 'employee' ? <form className="welcome-login-form" onSubmit={validateEmployeeAccess}>
+              <p className="welcome-form-description">Ingresa tu ID de empleado y el documento registrado para tu cuenta de demostración.</p>
+              <label className="welcome-input-field"><span>ID del empleado (ID_EMPLEADO)</span><input type="text" inputMode="numeric" autoComplete="username" value={employeeId} onChange={event => setEmployeeId(event.target.value)} placeholder="Ingresa tu ID" required /></label>
+              <label className="welcome-input-field"><span>Documento (DOCUMENTO)</span><span className="welcome-password-control"><input type={showEmployeeDocument ? 'text' : 'password'} autoComplete="current-password" value={employeeDocument} onChange={event => setEmployeeDocument(event.target.value)} placeholder="Ingresa tu documento" required /><button type="button" className="welcome-password-toggle" aria-label={showEmployeeDocument ? 'Ocultar documento' : 'Mostrar documento'} aria-pressed={showEmployeeDocument} onClick={() => setShowEmployeeDocument(value => !value)}>{showEmployeeDocument ? 'Ocultar' : 'Mostrar'}</button></span></label>
+              {employeeError && <p className="welcome-form-error" role="alert">{employeeError}</p>}
+              <button type="submit" className="welcome-submit-button">Verificar acceso</button>
+              <p className="welcome-form-footnote">Validación temporal con los datos de demostración actuales.</p>
+            </form> : <form className="welcome-login-form" onSubmit={submitAdminAccess}>
+              <p className="welcome-form-description">Acceso independiente para el Administrador general.</p>
+              <label className="welcome-input-field"><span>Usuario o correo electrónico</span><input type="text" autoComplete="username" value={adminUsername} onChange={event => setAdminUsername(event.target.value)} placeholder="Ingresa tu usuario o correo" required /></label>
+              <label className="welcome-input-field"><span>Contraseña</span><span className="welcome-password-control"><input type={showAdminPassword ? 'text' : 'password'} autoComplete="current-password" value={adminPassword} onChange={event => setAdminPassword(event.target.value)} placeholder="Ingresa tu contraseña" required /><button type="button" className="welcome-password-toggle" aria-label={showAdminPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showAdminPassword} onClick={() => setShowAdminPassword(value => !value)}>{showAdminPassword ? 'Ocultar' : 'Mostrar'}</button></span></label>
+              {adminMessage && <p className="welcome-form-error" role="alert">{adminMessage}</p>}
+              <button type="submit" className="welcome-submit-button">Iniciar sesión</button>
+              <p className="welcome-form-footnote">Credenciales temporales de demostración; no usar como acceso de producción.</p>
+            </form>}
+          </div>}
+
+          {screen === 'employee-verified' && verifiedEmployee && <div className="welcome-form-card welcome-verified-card">
+            <button type="button" className="welcome-back-button" onClick={returnToOptions}>← Volver a la bienvenida</button>
+            <div className="welcome-form-heading">
+              <span className="welcome-verified-mark" aria-hidden="true">✓</span>
+              <div><p className="welcome-form-eyebrow">CREDENCIALES VERIFICADAS</p><h1 id="welcome-title">Identidad confirmada</h1></div>
+            </div>
+            <p className="welcome-form-description">Se identificaron el empleado y sus registros relacionados.</p>
+            <dl className="welcome-identity-details">
+              <div><dt>Empleado</dt><dd>{verifiedEmployee.employee.nombre} {verifiedEmployee.employee.apellido}</dd></div>
+              <div><dt>ID_EMPLEADO</dt><dd>{verifiedEmployee.employee.id ?? verifiedEmployee.employee.id_empleado}</dd></div>
+              <div><dt>Cargo relacionado</dt><dd>{verifiedEmployee.cargo?.nombre ?? 'No encontrado'}</dd></div>
+              <div><dt>Hotel relacionado</dt><dd>{verifiedEmployee.hotel?.nombre ?? 'No encontrado'}</dd></div>
+            </dl>
+            <p className="welcome-form-footnote">El entorno operativo del empleado se habilitará en una siguiente etapa.</p>
+          </div>}
+        </section>
+      )}
+    </main>
+  )
+}
+
 // ==========================================
 // COMPONENTE PRINCIPAL
 // ==========================================
@@ -439,6 +629,7 @@ function App() {
 
   // ESTADO GENERAL
   const [seccionActiva, setSeccionActiva] = useState('Dashboard')
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false)
   const [hoteles, setHoteles] = useState(hotelesIniciales)
   const [busquedaHotel, setBusquedaHotel] = useState('')
   const [mostrarModalHotel, setMostrarModalHotel] = useState(false)
@@ -3686,7 +3877,9 @@ function App() {
   // ==========================================
 
   return (
-    <div className="app">
+    <>
+      <WelcomeScreen empleados={empleados} cargos={cargos} hoteles={hoteles} isAdminAuthenticated={adminAuthenticated} onAdminAuthenticated={() => setAdminAuthenticated(true)} />
+      <div className="app welcome-covered-app" aria-hidden={!adminAuthenticated} inert={!adminAuthenticated}>
 
       <aside className="sidebar">
 
@@ -3739,7 +3932,8 @@ function App() {
 
       </main>
 
-    </div>
+      </div>
+    </>
   )
 }
 
