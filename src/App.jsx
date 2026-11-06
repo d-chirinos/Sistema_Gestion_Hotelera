@@ -345,9 +345,30 @@ const permisosTecnicoMantenimiento = {
   Mantenimiento: { visualizar: true, registrar: true, editar: true },
 }
 
+const permisosAdministradorEmpleado = {
+  Dashboard: { visualizar: true },
+  Hoteles: { visualizar: true },
+  Reservas: { visualizar: true, registrar: true, editar: true },
+  Estadias: { visualizar: true, registrar: true, editar: true },
+  Habitaciones: { visualizar: true, registrar: true, editar: true },
+  'Tipos de habitación': { visualizar: true, registrar: true, editar: true },
+  Clientes: { visualizar: true, registrar: true, editar: true },
+  Servicios: { visualizar: true, registrar: true, editar: true },
+  Consumos: { visualizar: true, registrar: true, editar: true },
+  Pagos: { visualizar: true, registrar: true, editar: true },
+  Mantenimiento: { visualizar: true, registrar: true, editar: true },
+  Empleados: { visualizar: true },
+  Cargos: { visualizar: true },
+}
+
 const permisosPorCargoEmpleado = {
   Recepcionista: permisosRecepcionista,
+  Administrador: permisosAdministradorEmpleado,
   'Técnico de mantenimiento': permisosTecnicoMantenimiento,
+  Electricista: permisosTecnicoMantenimiento,
+  Plomero: permisosTecnicoMantenimiento,
+  'Técnico de climatización': permisosTecnicoMantenimiento,
+  Pintor: permisosTecnicoMantenimiento,
 }
 
 const moduloInicialEmpleado = cargoNombre =>
@@ -732,6 +753,7 @@ function App() {
   const [formularioEdicion, setFormularioEdicion] = useState({ cliente: '', habitacion: '', entrada: '', salida: '', total: '', adelanto: '0', estado: 'CONFIRMADA' })
   const [errorEdicion, setErrorEdicion] = useState('')
   const [reservaPorCancelar, setReservaPorCancelar] = useState(null)
+  const [reservaPorReactivar, setReservaPorReactivar] = useState(null)
 
   // ESTADOS DE CLIENTES
   const [clientes, setClientes] = useState(clientesIniciales)
@@ -905,8 +927,9 @@ function App() {
   const puedeEditarEnModulo = modulo => !employeeSession || Boolean(permisosActivosEmpleado[modulo]?.editar)
   const puedeEliminarEnModulo = () => !employeeSession
   const puedeCancelarReservas = () => !employeeSession || Boolean(permisosActivosEmpleado.Reservas?.cancelar)
+  const opcionesMenuEmpleado = ['Dashboard', 'Hoteles', 'Reservas', 'Habitaciones', 'Clientes', 'Empleados', 'Consumos', 'Pagos', 'Mantenimiento']
   const opcionesMenu = employeeSession
-    ? ['Reservas', 'Habitaciones', 'Clientes', 'Consumos', 'Pagos', 'Mantenimiento'].filter(modulo => puedeVerModulo(modulo))
+    ? opcionesMenuEmpleado.filter(modulo => puedeVerModulo(modulo))
     : opcionesMenuAdministrativas
 
   // ==========================================
@@ -920,6 +943,9 @@ function App() {
     hoteles.find(hotel => Number(hotel.id_hotel) === Number(empleado.hotel_id_hotel))
 
   const hotelSesionId = Number(employeeSession?.hotel?.id_hotel)
+  const hotelesVisibles = employeeSession
+    ? hoteles.filter(hotel => Number(hotel.id_hotel) === hotelSesionId)
+    : hoteles
   const habitacionesVisibles = employeeSession
     ? habitaciones.filter(habitacion => Number(habitacion.hotel_id_hotel) === hotelSesionId)
     : habitaciones
@@ -987,7 +1013,7 @@ function App() {
     valor: String(registro[campoId]),
     etiqueta: etiqueta(registro),
   }))
-  const opcionesHotelesFiltro = opcionesFiltroDesde(employeeSession ? [employeeSession.hotel] : hoteles, 'id_hotel', hotel => hotel.nombre)
+  const opcionesHotelesFiltro = opcionesFiltroDesde(hotelesVisibles, 'id_hotel', hotel => hotel.nombre)
   const opcionesHabitacionesFiltro = opcionesFiltroDesde(habitacionesVisibles, 'id', habitacion => `Habitación ${habitacion.numero}`)
   const opcionesTiposHabitacionFiltro = opcionesFiltroDesde(tiposHabitacion, 'id_tipo', tipo => tipo.nombre)
   const opcionesCargosFiltro = opcionesFiltroDesde(cargos, 'id_cargo', cargo => cargo.nombre)
@@ -996,7 +1022,7 @@ function App() {
   const opcionesEstadiasFiltro = opcionesFiltroDesde(estadiasVisibles, 'id_estadia', estadia => `Estadía ${estadia.id_estadia} · ${formatearFechaReserva(estadia.fecha_check_in)}`)
   const opcionesServiciosFiltro = opcionesFiltroDesde(serviciosVisibles, 'id', servicio => servicio.nombre)
   const opcionesMetodosPagoFiltro = [...new Set(pagosVisibles.map(pago => pago.metodo_pago).filter(Boolean))].map(metodo => ({ valor: metodo, etiqueta: metodo }))
-  const opcionesEstadosHabitacionFiltro = [...new Set(habitaciones.map(habitacion => habitacion.estado).filter(Boolean))].map(estado => ({ valor: estado, etiqueta: estado }))
+  const opcionesEstadosHabitacionFiltro = [...new Set(habitacionesVisibles.map(habitacion => habitacion.estado).filter(Boolean))].map(estado => ({ valor: estado, etiqueta: estado }))
 
   const atributosFiltroHabitaciones = [
     { campo: 'id', etiqueta: 'ID_HABITACION (PK)', tipo: 'numero' },
@@ -1082,7 +1108,7 @@ function App() {
     { campo: 'categoria', etiqueta: 'CATEGORIA', tipo: 'texto' },
   ]
 
-  const hotelesFiltrados = hoteles.filter(hotel => {
+  const hotelesFiltrados = hotelesVisibles.filter(hotel => {
     const texto = busquedaHotel.trim().toLowerCase()
     const coincideBusqueda = atributosFiltroHoteles.some(atributo =>
       String(hotel[atributo.campo] ?? '').toLowerCase().includes(texto)
@@ -1184,6 +1210,31 @@ function App() {
         : reserva
     ))
     setReservaPorCancelar(null)
+  }
+
+  function abrirConfirmacionReactivacion(reserva) {
+    if (!adminAuthenticated || employeeSession || !reserva) return
+    const reservaActual = reservas.find(item => Number(item.id_reserva) === Number(reserva.id_reserva))
+    if (!reservaActual || reservaActual.estado !== 'CANCELADA') return
+    setReservaPorReactivar(reservaActual)
+  }
+
+  function confirmarReactivacionReserva() {
+    if (!adminAuthenticated || employeeSession || !reservaPorReactivar) return
+
+    const idReserva = Number(reservaPorReactivar.id_reserva)
+    const reservaActual = reservas.find(item => Number(item.id_reserva) === idReserva)
+    if (!reservaActual || reservaActual.estado !== 'CANCELADA') {
+      setReservaPorReactivar(null)
+      return
+    }
+
+    setReservas(reservasAnteriores => reservasAnteriores.map(reserva =>
+      Number(reserva.id_reserva) === idReserva && reserva.estado === 'CANCELADA'
+        ? { ...reserva, estado: 'CONFIRMADA' }
+        : reserva
+    ))
+    setReservaPorReactivar(null)
   }
 
   function abrirEdicionReserva(reserva) {
@@ -1985,7 +2036,7 @@ function App() {
     setEmpleadoPorEliminar(null)
   }
 
-  const empleadosFiltrados = empleados.filter(empleado => {
+  const empleadosFiltrados = empleadosDelHotel.filter(empleado => {
     const texto = busquedaEmpleado.toLowerCase().trim()
     const nombreCompleto = `${empleado.nombre} ${empleado.apellido}`.toLowerCase()
     const cargo = obtenerCargoEmpleado(empleado)
@@ -2598,7 +2649,7 @@ function App() {
                   <div className="reservation-form-grid">
                     <label className="reservation-form-field"><span>Número de habitación *</span><input type="text" inputMode="numeric" placeholder="Ej. 401" value={nuevaHabitacion.numero} onChange={e => setNuevaHabitacion(actual => ({ ...actual, numero: e.target.value }))} required /></label>
                     <label className="reservation-form-field"><span>Tipo de habitación *</span><select value={nuevaHabitacion.tipo} onChange={e => setNuevaHabitacion(actual => ({ ...actual, tipo: e.target.value }))} required><option value="">Selecciona un tipo</option>{tiposHabitacion.map(tipo => <option key={tipo.id_tipo} value={tipo.id_tipo}>{tipo.nombre}</option>)}</select></label>
-                    <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={nuevaHabitacion.hotel_id_hotel} onChange={e => setNuevaHabitacion(actual => ({ ...actual, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hoteles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
+                    <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={nuevaHabitacion.hotel_id_hotel} onChange={e => setNuevaHabitacion(actual => ({ ...actual, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hotelesVisibles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
                     <label className="reservation-form-field"><span>Piso *</span><input type="number" min="1" step="1" placeholder="Ej. 4" value={nuevaHabitacion.piso} onChange={e => setNuevaHabitacion(actual => ({ ...actual, piso: e.target.value }))} required /></label>
                     <label className="reservation-form-field"><span>Estado *</span><select value={nuevaHabitacion.estado} onChange={e => setNuevaHabitacion(actual => ({ ...actual, estado: e.target.value }))} required><option value="DISPONIBLE">Disponible</option><option value="OCUPADA">Ocupada</option><option value="MANTENIMIENTO">Mantenimiento</option></select></label>
                   </div>
@@ -2621,7 +2672,7 @@ function App() {
                   <div className="reservation-form-grid">
                     <label className="reservation-form-field"><span>Número de habitación *</span><input type="text" inputMode="numeric" placeholder="Ej. 401" value={formularioHabitacionEdicion.numero} onChange={e => setFormularioHabitacionEdicion(actual => ({ ...actual, numero: e.target.value }))} required /></label>
                     <label className="reservation-form-field"><span>Tipo de habitación *</span><select value={formularioHabitacionEdicion.tipo} onChange={e => setFormularioHabitacionEdicion(actual => ({ ...actual, tipo: e.target.value }))} required><option value="">Selecciona un tipo</option>{tiposHabitacion.map(tipo => <option key={tipo.id_tipo} value={tipo.id_tipo}>{tipo.nombre}</option>)}</select></label>
-                    <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={formularioHabitacionEdicion.hotel_id_hotel} onChange={e => setFormularioHabitacionEdicion(actual => ({ ...actual, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hoteles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
+                    <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={formularioHabitacionEdicion.hotel_id_hotel} onChange={e => setFormularioHabitacionEdicion(actual => ({ ...actual, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hotelesVisibles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
                     <label className="reservation-form-field"><span>Piso *</span><input type="number" min="1" step="1" placeholder="Ej. 4" value={formularioHabitacionEdicion.piso} onChange={e => setFormularioHabitacionEdicion(actual => ({ ...actual, piso: e.target.value }))} required /></label>
                     <label className="reservation-form-field"><span>Estado *</span><select value={formularioHabitacionEdicion.estado} onChange={e => setFormularioHabitacionEdicion(actual => ({ ...actual, estado: e.target.value }))} required><option value="DISPONIBLE">Disponible</option><option value="OCUPADA">Ocupada</option><option value="MANTENIMIENTO">Mantenimiento</option></select></label>
                   </div>
@@ -2820,7 +2871,7 @@ function App() {
                         <td><span className={`reservation-status reservation-status-${reserva.estado.toLowerCase()}`}><span className="reservation-status-dot"></span>{reserva.estado.charAt(0) + reserva.estado.slice(1).toLowerCase()}</span></td>
                         <td className="reservation-amount">{formatearMontoReserva(reserva.total_estimado)}</td>
                         <td className="reservation-amount reservation-advance">{formatearMontoReserva(reserva.monto_adelanto)}</td>
-                        <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => abrirDetalleReserva(reserva)} aria-label={`Consultar ${codigoReserva(reserva.id_reserva)}`}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Reservas')} onClick={() => abrirEdicionReserva(reserva)} disabled={reserva.estado === 'CANCELADA'} title={reserva.estado === 'CANCELADA' ? 'Las reservas canceladas no se pueden editar' : 'Editar reserva'} aria-label={`Editar ${codigoReserva(reserva.id_reserva)}`}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => abrirConfirmacionCancelacion(reserva)} disabled={reserva.estado !== 'CONFIRMADA'} title={reserva.estado === 'CONFIRMADA' ? 'Cancelar reserva' : 'Solo se pueden cancelar reservas confirmadas'} aria-label={`Cancelar ${codigoReserva(reserva.id_reserva)}`}>Cancelar</button></div></td>
+                        <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => abrirDetalleReserva(reserva)} aria-label={`Consultar ${codigoReserva(reserva.id_reserva)}`}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Reservas')} onClick={() => abrirEdicionReserva(reserva)} disabled={reserva.estado === 'CANCELADA'} title={reserva.estado === 'CANCELADA' ? 'Las reservas canceladas no se pueden editar' : 'Editar reserva'} aria-label={`Editar ${codigoReserva(reserva.id_reserva)}`}>Editar</button>{puedeCancelarReservas() && <button type="button" className="reservation-cancel-record-button" onClick={() => abrirConfirmacionCancelacion(reserva)} disabled={reserva.estado !== 'CONFIRMADA'} title={reserva.estado === 'CONFIRMADA' ? 'Cancelar reserva' : 'Solo se pueden cancelar reservas confirmadas'} aria-label={`Cancelar ${codigoReserva(reserva.id_reserva)}`}>Cancelar</button>}{adminAuthenticated && !employeeSession && reserva.estado === 'CANCELADA' && <button type="button" className="reservation-edit-button" onClick={() => abrirConfirmacionReactivacion(reserva)} aria-label={`Reactivar ${codigoReserva(reserva.id_reserva)}`}>Reactivar</button>}</div></td>
                       </tr>
                     ))}
                   {reservasFiltradas.length === 0 && <tr><td colSpan="8" className="empty-message">No se encontraron reservas que coincidan con los filtros aplicados.</td></tr>}
@@ -2927,6 +2978,18 @@ function App() {
               </section>
             </div>
           })()}
+
+          {reservaPorReactivar && adminAuthenticated && !employeeSession && <div className="reservation-modal-backdrop" onMouseDown={evento => { if (evento.target === evento.currentTarget) setReservaPorReactivar(null) }}>
+            <section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="reservation-reactivate-title">
+              <div className="reservation-confirm-icon">✓</div>
+              <h2 id="reservation-reactivate-title">¿Reactivar esta reserva?</h2>
+              <p>La reserva <strong>{codigoReserva(reservaPorReactivar.id_reserva)}</strong> conservará sus datos y cambiará su estado de <strong>CANCELADA</strong> a <strong>CONFIRMADA</strong>.</p>
+              <div className="reservation-modal-footer">
+                <button type="button" className="reservation-cancel-button" onClick={() => setReservaPorReactivar(null)}>Volver</button>
+                <button type="button" className="reservation-save-button" onClick={confirmarReactivacionReserva}>Confirmar reactivación</button>
+              </div>
+            </section>
+          </div>}
 
           {reservaSeleccionada && (() => {
             const clienteDetalle = obtenerClienteReserva(reservaSeleccionada)
@@ -3123,7 +3186,7 @@ function App() {
             <div className="welcome">
               <span className="reservations-eyebrow">GESTIÓN HOTELERA</span>
               <h1>Gestión de empleados</h1>
-              <p>Consulta y administra los empleados registrados en Hotel Los Andes.</p>
+              <p>{employeeSession ? `Consulta el personal de ${employeeSession.hotel.nombre}.` : 'Consulta y administra los empleados registrados en Hotel Los Andes.'}</p>
             </div>
             <div className="rooms-heading-actions">
               <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{subseccionEmpleados === 'empleados' ? empleadosDelHotel.length : cargos.length} registros</strong><span>{subseccionEmpleados === 'empleados' ? 'Empleados en el sistema' : 'Cargos en el sistema'}</span></div></div>
@@ -3132,21 +3195,21 @@ function App() {
 
           <div className="rooms-subnav employees-subnav" role="tablist" aria-label="Secciones de empleados">
             <button type="button" role="tab" aria-selected={subseccionEmpleados === 'empleados'} className={subseccionEmpleados === 'empleados' ? 'active' : ''} onClick={() => setSubseccionEmpleados('empleados')}>Empleados</button>
-            <button type="button" role="tab" aria-selected={subseccionEmpleados === 'cargos'} className={subseccionEmpleados === 'cargos' ? 'active' : ''} onClick={() => setSubseccionEmpleados('cargos')}>Cargos</button>
+            {puedeVerModulo('Cargos') && <button type="button" role="tab" aria-selected={subseccionEmpleados === 'cargos'} className={subseccionEmpleados === 'cargos' ? 'active' : ''} onClick={() => setSubseccionEmpleados('cargos')}>Cargos</button>}
           </div>
 
           {subseccionEmpleados === 'empleados' && <>
           <div className="room-summary rooms-modern-summary employees-modern-summary">
             <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de empleados</span><span className="reservation-stat-icon">♙</span></div><h2>{empleadosDelHotel.length}</h2><small>Empleados registrados</small></article>
-            <article className="room-summary-card reservation-stat employees-stat-roles"><div className="reservation-stat-top"><span>Cargos asignados</span><span className="reservation-stat-icon">▤</span></div><h2>{new Set(empleados.map(e => e.cargo_id_cargo).filter(Boolean)).size}</h2><small>Funciones registradas</small></article>
+            <article className="room-summary-card reservation-stat employees-stat-roles"><div className="reservation-stat-top"><span>Cargos asignados</span><span className="reservation-stat-icon">▤</span></div><h2>{new Set(empleadosDelHotel.map(e => e.cargo_id_cargo).filter(Boolean)).size}</h2><small>Funciones registradas</small></article>
             <article className="room-summary-card reservation-stat employees-stat-results"><div className="reservation-stat-top"><span>Empleados encontrados</span><span className="reservation-stat-icon">⌕</span></div><h2>{empleadosFiltrados.length}</h2><small>Coincidencias de búsqueda</small></article>
-            <article className="room-summary-card reservation-stat employees-stat-hotels"><div className="reservation-stat-top"><span>Hoteles registrados</span><span className="reservation-stat-icon">▣</span></div><h2>{new Set(empleados.map(e => e.hotel_id_hotel).filter(Boolean)).size}</h2><small>Hoteles con personal</small></article>
+            <article className="room-summary-card reservation-stat employees-stat-hotels"><div className="reservation-stat-top"><span>Hoteles registrados</span><span className="reservation-stat-icon">▣</span></div><h2>{new Set(empleadosDelHotel.map(e => e.hotel_id_hotel).filter(Boolean)).size}</h2><small>Hoteles con personal</small></article>
           </div>
 
           <div className="room-list reservations-list rooms-modern-list employees-list">
             <div className="room-list-header reservations-list-header">
               <div><h2>Listado de empleados</h2><p>Administra la información personal del personal registrado.</p></div>
-              <div className="reservations-header-actions"><span className="reservations-total-pill">{empleadosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroEmpleado}>+ Nuevo empleado</button></div>
+          <div className="reservations-header-actions"><span className="reservations-total-pill">{empleadosFiltrados.length} resultados</span>{puedeCrearEnModulo('Empleados') && <button type="button" className="reservation-new-button" onClick={abrirRegistroEmpleado}>+ Nuevo empleado</button>}</div>
             </div>
             <DynamicListFilterPanel title="Empleados" listKey="empleados" searchValue={busquedaEmpleado} searchPlaceholder="Buscar por nombre, documento o fecha de ingreso..." attributes={atributosFiltroEmpleados} activeFilters={obtenerFiltrosActivosLista('empleados')} onSearchChange={valor => actualizarFiltroLista('empleados', setBusquedaEmpleado, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaEmpleado(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
@@ -3156,7 +3219,7 @@ function App() {
                   {empleadosPagina.rows.map(empleado => (
                     <tr key={empleado.id}>
                       <td>{empleado.id}</td><td><strong className="employee-name">{empleado.nombre}</strong></td><td>{empleado.apellido}</td><td>{empleado.documento}</td><td>{empleado.fechaIngreso || '—'}</td>
-                      <td className="reservation-action-cell employee-action-cell"><div className="reservation-row-actions employee-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setEmpleadoSeleccionado(empleado)}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionEmpleado(empleado)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => setEmpleadoPorEliminar(empleado)}>Eliminar</button></div></td>
+                      <td className="reservation-action-cell employee-action-cell"><div className="reservation-row-actions employee-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setEmpleadoSeleccionado(empleado)}>Ver detalle</button>{puedeEditarEnModulo('Empleados') && <button type="button" className="reservation-edit-button" onClick={() => abrirEdicionEmpleado(empleado)}>Editar</button>}{puedeEliminarEnModulo() && <button type="button" className="reservation-cancel-record-button" onClick={() => setEmpleadoPorEliminar(empleado)}>Eliminar</button>}</div></td>
                     </tr>
                   ))}
                   {empleadosFiltrados.length === 0 && <tr><td colSpan="6" className="empty-message">No se encontraron empleados con ese criterio.</td></tr>}
@@ -3180,7 +3243,7 @@ function App() {
             <div className="room-list reservations-list employees-list cargos-list">
               <div className="room-list-header reservations-list-header">
                 <div><h2>Listado de cargos</h2><p>Administra los cargos y salarios base registrados en el hotel.</p></div>
-                <div className="reservations-header-actions"><span className="reservations-total-pill">{cargosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroCargo}>＋ Nuevo cargo</button></div>
+                <div className="reservations-header-actions"><span className="reservations-total-pill">{cargosFiltrados.length} resultados</span>{puedeCrearEnModulo('Cargos') && <button type="button" className="reservation-new-button" onClick={abrirRegistroCargo}>＋ Nuevo cargo</button>}</div>
               </div>
               <DynamicListFilterPanel title="Cargos" listKey="cargos" searchValue={busquedaCargo} searchPlaceholder="Buscar por nombre de cargo..." attributes={atributosFiltroCargos} activeFilters={obtenerFiltrosActivosLista('cargos')} onSearchChange={valor => actualizarFiltroLista('cargos', setBusquedaCargo, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaCargo(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
@@ -3191,7 +3254,7 @@ function App() {
                       <td>{cargo.id_cargo}</td>
                       <td><strong className="employee-name">{cargo.nombre}</strong></td>
                       <td>{cargo.salario_base == null ? 'No registrado' : `S/ ${Number(cargo.salario_base).toFixed(2)}`}</td>
-                      <td className="reservation-action-cell cargo-action-cell"><div className="reservation-row-actions cargo-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setCargoSeleccionado(cargo)} aria-label={`Ver detalle del cargo ${cargo.nombre}`}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionCargo(cargo)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => setCargoPorEliminar(cargo)}>Eliminar</button></div></td>
+                      <td className="reservation-action-cell cargo-action-cell"><div className="reservation-row-actions cargo-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setCargoSeleccionado(cargo)} aria-label={`Ver detalle del cargo ${cargo.nombre}`}>Ver detalle</button>{puedeEditarEnModulo('Cargos') && <button type="button" className="reservation-edit-button" onClick={() => abrirEdicionCargo(cargo)}>Editar</button>}{puedeEliminarEnModulo() && <button type="button" className="reservation-cancel-record-button" onClick={() => setCargoPorEliminar(cargo)}>Eliminar</button>}</div></td>
                     </tr>
                   ))}{cargosFiltrados.length === 0 && <tr><td colSpan="3" className="empty-message">No se encontraron cargos con ese criterio.</td></tr>}</tbody>
                 </table>
@@ -3202,7 +3265,7 @@ function App() {
             </>
           )}
 
-          {mostrarModalCargo && (
+          {mostrarModalCargo && (cargoEnEdicion ? puedeEditarEnModulo('Cargos') : puedeCrearEnModulo('Cargos')) && (
             <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalCargo(false) }}>
               <section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="cargo-form-title">
                 <div className="reservation-modal-header"><div><span className="reservations-eyebrow">{cargoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="cargo-form-title">{cargoEnEdicion ? 'Editar cargo' : 'Registrar cargo'}</h2><p>Completa los atributos de la tabla CARGO.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalCargo(false)} aria-label="Cerrar ventana">×</button></div>
@@ -3215,7 +3278,7 @@ function App() {
           )}
 
           {cargoSeleccionado && (() => {
-            const empleadosDelCargo = empleados.filter(empleado => Number(empleado.cargo_id_cargo) === Number(cargoSeleccionado.id_cargo))
+            const empleadosDelCargo = empleadosDelHotel.filter(empleado => Number(empleado.cargo_id_cargo) === Number(cargoSeleccionado.id_cargo))
             return (
               <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setCargoSeleccionado(null) }}>
                 <section className="reservation-detail-modal room-detail-modal employee-detail-modal" role="dialog" aria-modal="true" aria-labelledby="cargo-detail-title">
@@ -3237,7 +3300,7 @@ function App() {
                     { key: 'documento', label: 'DOCUMENTO', render: empleado => empleado.documento },
                     { key: 'fecha_ingreso', label: 'FECHA_INGRESO', render: empleado => empleado.fecha_ingreso ?? empleado.fechaIngreso ?? 'No registrado' },
                   ]} />
-                  <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setCargoSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" onClick={() => { const cargo = cargoSeleccionado; setCargoSeleccionado(null); abrirEdicionCargo(cargo) }}>Editar cargo</button></div>
+                  <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setCargoSeleccionado(null)}>Cerrar</button>{puedeEditarEnModulo('Cargos') && <button type="button" className="reservation-save-button" onClick={() => { const cargo = cargoSeleccionado; setCargoSeleccionado(null); abrirEdicionCargo(cargo) }}>Editar cargo</button>}</div>
                 </section>
               </div>
             )
@@ -3248,7 +3311,7 @@ function App() {
             return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setCargoPorEliminar(null) }}><section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="cargo-delete-title"><div className="reservation-confirm-icon">!</div><h2 id="cargo-delete-title">{asignados.length ? 'No se puede eliminar este cargo' : '¿Eliminar este cargo?'}</h2>{asignados.length ? <><p>El cargo <strong>{cargoPorEliminar.nombre}</strong> está asignado a empleados registrados.</p><div className="reservation-confirm-notice"><strong>{asignados.length}</strong> empleado(s) dependen de este cargo. Primero reasigna esos empleados a otro cargo para conservar la integridad referencial.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setCargoPorEliminar(null)}>Cerrar</button></div></> : <><p>Estás por eliminar el cargo <strong>{cargoPorEliminar.nombre}</strong>. Esta acción no se podrá deshacer.</p><div className="reservation-confirm-notice">Solo se permite eliminar cargos que no estén asignados a empleados.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setCargoPorEliminar(null)}>Conservar cargo</button><button type="button" className="reservation-confirm-danger-button" onClick={confirmarEliminarCargo}>Sí, eliminar</button></div></>}</section></div>
           })()}
 
-          {mostrarModalEmpleado && (
+          {mostrarModalEmpleado && (empleadoEnEdicion ? puedeEditarEnModulo('Empleados') : puedeCrearEnModulo('Empleados')) && (
             <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalEmpleado(false) }}>
               <section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="employee-form-title">
                 <div className="reservation-modal-header"><div><span className="reservations-eyebrow">{empleadoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="employee-form-title">{empleadoEnEdicion ? 'Editar empleado' : 'Registrar empleado'}</h2><p>Completa los atributos de la tabla EMPLEADO.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalEmpleado(false)} aria-label="Cerrar ventana">×</button></div>
@@ -3258,7 +3321,7 @@ function App() {
                   <label className="reservation-form-field"><span>Documento *</span><input type="text" inputMode="numeric" maxLength="15" value={formularioEmpleado.documento} onChange={e => setFormularioEmpleado(a => ({ ...a, documento: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="Número de documento" required /></label>
                   <label className="reservation-form-field"><span>Fecha de ingreso</span><input type="date" value={formularioEmpleado.fechaIngreso} onChange={e => setFormularioEmpleado(a => ({ ...a, fechaIngreso: e.target.value }))} /></label>
                   <label className="reservation-form-field"><span>Cargo *</span><select value={formularioEmpleado.cargo_id_cargo} onChange={e => setFormularioEmpleado(a => ({ ...a, cargo_id_cargo: e.target.value }))} required><option value="">Selecciona un cargo</option>{cargos.map(cargo => <option key={cargo.id_cargo} value={cargo.id_cargo}>{cargo.nombre}</option>)}</select></label>
-                  <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={formularioEmpleado.hotel_id_hotel} onChange={e => setFormularioEmpleado(a => ({ ...a, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hoteles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
+                  <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={formularioEmpleado.hotel_id_hotel} onChange={e => setFormularioEmpleado(a => ({ ...a, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hotelesVisibles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
                 </div>{errorEmpleado && <p className="reservation-form-error" role="alert">{errorEmpleado}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalEmpleado(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{empleadoEnEdicion ? 'Guardar cambios' : 'Registrar empleado'}</button></div></form>
               </section>
             </div>
@@ -3268,7 +3331,7 @@ function App() {
             const cargoDetalle = obtenerCargoEmpleado(empleadoSeleccionado)
             const hotelDetalle = obtenerHotelEmpleado(empleadoSeleccionado)
             const estadiasEmpleado = estadiasVisibles.filter(estadia => Number(estadia.empleado_id_empleado) === Number(empleadoSeleccionado.id))
-            const mantenimientosEmpleado = mantenimientos.filter(mantenimiento => Number(mantenimiento.empleado_id_empleado) === Number(empleadoSeleccionado.id))
+            const mantenimientosEmpleado = mantenimientosVisibles.filter(mantenimiento => Number(mantenimiento.empleado_id_empleado) === Number(empleadoSeleccionado.id))
             const mostrarDato = valor => valor !== null && valor !== undefined && valor !== '' ? valor : 'No registrado'
             return (
               <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setEmpleadoSeleccionado(null) }}>
@@ -3329,7 +3392,7 @@ function App() {
 
                   <div className="reservation-modal-footer">
                     <button type="button" className="reservation-cancel-button" onClick={() => setEmpleadoSeleccionado(null)}>Cerrar detalle</button>
-                    <button type="button" className="reservation-save-button" onClick={() => { const actual = empleadoSeleccionado; setEmpleadoSeleccionado(null); abrirEdicionEmpleado(actual) }}>Editar empleado</button>
+                    {puedeEditarEnModulo('Empleados') && <button type="button" className="reservation-save-button" onClick={() => { const actual = empleadoSeleccionado; setEmpleadoSeleccionado(null); abrirEdicionEmpleado(actual) }}>Editar empleado</button>}
                   </div>
                 </section>
               </div>
@@ -3485,7 +3548,7 @@ function App() {
               <form onSubmit={guardarServicio}><div className="reservation-form-grid">
                 <label className="reservation-form-field"><span>Nombre del servicio *</span><input type="text" maxLength="100" placeholder="Ej. Desayuno" value={formularioServicio.nombre} onChange={e => setFormularioServicio(actual => ({ ...actual, nombre: e.target.value }))} required /></label>
                 <label className="reservation-form-field"><span>Precio (S/) *</span><input type="number" min="0" step="0.01" placeholder="Ej. 30.00" value={formularioServicio.precio} onChange={e => setFormularioServicio(actual => ({ ...actual, precio: e.target.value }))} required /></label>
-                <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={formularioServicio.hotel_id_hotel} onChange={e => setFormularioServicio(actual => ({ ...actual, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hoteles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
+                <label className="reservation-form-field"><span>Hotel relacionado (FK) *</span><select value={formularioServicio.hotel_id_hotel} onChange={e => setFormularioServicio(actual => ({ ...actual, hotel_id_hotel: e.target.value }))} required><option value="">Selecciona un hotel</option>{hotelesVisibles.map(hotel => <option key={hotel.id_hotel} value={hotel.id_hotel}>{hotel.nombre}</option>)}</select></label>
               </div>{errorServicio && <p className="reservation-form-error" role="alert">{errorServicio}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalServicio(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{servicioEnEdicion ? 'Guardar cambios' : 'Registrar servicio'}</button></div></form>
             </section>
           </div>}
@@ -3565,7 +3628,7 @@ function App() {
               <ListPagination totalItems={pagosFiltrados.length} {...pagosPagina} onPageChange={pagina => cambiarPaginaLista('pagos', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('pagos', tamano)} />
             {estadiasVisibles.length === 0 && <p className="consumption-dependency-note">Para registrar un pago primero debe existir una estadía en ESTADIA. El formulario se habilitará cuando haya una estadía disponible, evitando claves foráneas inválidas.</p>}
           </div>
-          {mostrarModalPago && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalPago(false) }}><section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="payment-form-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">{pagoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="payment-form-title">{pagoEnEdicion ? `Editar pago ${pagoEnEdicion.id_pago}` : 'Registrar pago'}</h2><p>Completa los atributos de PAGO y selecciona la estadía relacionada.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalPago(false)} aria-label="Cerrar ventana">×</button></div><form onSubmit={guardarPago}><div className="reservation-form-grid"><label className="reservation-form-field"><span>Estadía relacionada (FK) *</span><select value={formularioPago.estadia_id_estadia} onChange={e => setFormularioPago(actual => ({ ...actual, estadia_id_estadia: e.target.value }))} required><option value="">Selecciona una estadía</option>{estadias.map(item => <option key={item.id_estadia} value={item.id_estadia}>Estadía #{item.id_estadia} · {formatearFechaReserva(item.fecha_check_in)} – {formatearFechaReserva(item.fecha_check_out)}</option>)}</select><small>La selección conserva la clave foránea de ESTADIA.</small></label><label className="reservation-form-field"><span>Fecha de pago *</span><input type="date" value={formularioPago.fecha_pago} onChange={e => setFormularioPago(actual => ({ ...actual, fecha_pago: e.target.value }))} required /></label><label className="reservation-form-field"><span>Monto (S/) *</span><input type="number" min="0.01" step="0.01" placeholder="Ej. 250.00" value={formularioPago.monto} onChange={e => setFormularioPago(actual => ({ ...actual, monto: e.target.value }))} required /></label><label className="reservation-form-field"><span>Método de pago *</span><input type="text" maxLength="50" placeholder="Ej. Efectivo, Tarjeta, Transferencia" value={formularioPago.metodo_pago} onChange={e => setFormularioPago(actual => ({ ...actual, metodo_pago: e.target.value }))} required /></label></div>{errorPago && <p className="reservation-form-error" role="alert">{errorPago}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalPago(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{pagoEnEdicion ? 'Guardar cambios' : 'Registrar pago'}</button></div></form></section></div>}
+          {mostrarModalPago && (pagoEnEdicion ? puedeEditarEnModulo('Pagos') : puedeCrearEnModulo('Pagos')) && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalPago(false) }}><section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="payment-form-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">{pagoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="payment-form-title">{pagoEnEdicion ? `Editar pago ${pagoEnEdicion.id_pago}` : 'Registrar pago'}</h2><p>Completa los atributos de PAGO y selecciona la estadía relacionada.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalPago(false)} aria-label="Cerrar ventana">×</button></div><form onSubmit={guardarPago}><div className="reservation-form-grid"><label className="reservation-form-field"><span>Estadía relacionada (FK) *</span><select value={formularioPago.estadia_id_estadia} onChange={e => setFormularioPago(actual => ({ ...actual, estadia_id_estadia: e.target.value }))} required><option value="">Selecciona una estadía</option>{estadiasVisibles.map(item => <option key={item.id_estadia} value={item.id_estadia}>Estadía #{item.id_estadia} · {formatearFechaReserva(item.fecha_check_in)} – {formatearFechaReserva(item.fecha_check_out)}</option>)}</select><small>La selección conserva la clave foránea de ESTADIA.</small></label><label className="reservation-form-field"><span>Fecha de pago *</span><input type="date" value={formularioPago.fecha_pago} onChange={e => setFormularioPago(actual => ({ ...actual, fecha_pago: e.target.value }))} required /></label><label className="reservation-form-field"><span>Monto (S/) *</span><input type="number" min="0.01" step="0.01" placeholder="Ej. 250.00" value={formularioPago.monto} onChange={e => setFormularioPago(actual => ({ ...actual, monto: e.target.value }))} required /></label><label className="reservation-form-field"><span>Método de pago *</span><input type="text" maxLength="50" placeholder="Ej. Efectivo, Tarjeta, Transferencia" value={formularioPago.metodo_pago} onChange={e => setFormularioPago(actual => ({ ...actual, metodo_pago: e.target.value }))} required /></label></div>{errorPago && <p className="reservation-form-error" role="alert">{errorPago}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalPago(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{pagoEnEdicion ? 'Guardar cambios' : 'Registrar pago'}</button></div></form></section></div>}
           {pagoSeleccionado && (() => { const estadia = obtenerEstadiaPago(pagoSeleccionado); const reserva = obtenerReservaPago(pagoSeleccionado); return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setPagoSeleccionado(null) }}><section className="reservation-detail-modal room-detail-modal" role="dialog" aria-modal="true" aria-labelledby="payment-detail-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">INFORMACIÓN DEL REGISTRO</span><h2 id="payment-detail-title">Detalle del pago</h2><p>Información de PAGO y de la estadía relacionada mediante su clave foránea.</p></div><button type="button" className="reservation-modal-close" onClick={() => setPagoSeleccionado(null)} aria-label="Cerrar detalle">×</button></div><DetailPrimaryKey label="ID_PAGO (PK)" value={pagoSeleccionado.id_pago} /><div className="reservation-detail-grid"><article className="reservation-detail-group"><h3>Datos del pago</h3><div className="reservation-detail-item"><span>Fecha de pago</span><strong>{formatearFechaReserva(pagoSeleccionado.fecha_pago)}</strong></div><div className="reservation-detail-item"><span>Monto</span><strong>{formatearMontoPago(pagoSeleccionado.monto)}</strong></div><div className="reservation-detail-item"><span>Método de pago</span><strong>{pagoSeleccionado.metodo_pago}</strong></div></article><article className="reservation-detail-group"><h3>Estadía relacionada</h3><div className="reservation-detail-item"><span>ESTADIA_ID_ESTADIA (FK)</span><strong>{pagoSeleccionado.estadia_id_estadia}</strong></div><div className="reservation-detail-item"><span>Fecha de check-in</span><strong>{estadia ? formatearFechaReserva(estadia.fecha_check_in) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Fecha de check-out</span><strong>{estadia ? formatearFechaReserva(estadia.fecha_check_out) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Huésped (mediante reserva)</span><strong>{reserva ? nombreClienteReserva(reserva) : 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Habitación (mediante reserva)</span><strong>{reserva ? `Hab. ${numeroHabitacionReserva(reserva)}` : 'No registrada'}</strong></div></article></div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setPagoSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" hidden={!puedeEditarEnModulo('Pagos')} onClick={() => { const item = pagoSeleccionado; setPagoSeleccionado(null); abrirEdicionPago(item) }}>Editar pago</button></div></section></div> })()}
           {pagoPorEliminar && <div className="reservation-modal-backdrop"><section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="payment-delete-title"><div className="reservation-confirm-icon">!</div><h2 id="payment-delete-title">¿Eliminar este pago?</h2><p>Se eliminará el pago <strong>#{pagoPorEliminar.id_pago}</strong> por <strong>{formatearMontoPago(pagoPorEliminar.monto)}</strong>.</p><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setPagoPorEliminar(null)}>Conservar pago</button><button type="button" className="reservation-confirm-danger-button" onClick={confirmarEliminarPago}>Sí, eliminar</button></div></section></div>}
         </section>
@@ -3668,13 +3731,13 @@ function App() {
     // ========================================
 
     if (seccionActiva === 'Hoteles') {
-      const habitacionesAsociadas = habitacionesVisibles.filter(habitacion =>
+      const habitacionesAsociadas = employeeSession ? habitacionesVisibles.length : habitaciones.filter(habitacion =>
         hoteles.some(hotel => Number(hotel.id_hotel) === Number(habitacion.hotel_id_hotel))
       ).length
-      const empleadosAsociados = empleados.filter(empleado =>
+      const empleadosAsociados = employeeSession ? empleadosDelHotel.length : empleados.filter(empleado =>
         hoteles.some(hotel => Number(hotel.id_hotel) === Number(empleado.hotel_id_hotel))
       ).length
-      const serviciosAsociados = serviciosVisibles.filter(servicio =>
+      const serviciosAsociados = employeeSession ? serviciosVisibles.length : servicios.filter(servicio =>
         hoteles.some(hotel => Number(hotel.id_hotel) === Number(servicio.hotel_id_hotel))
       ).length
 
@@ -3689,7 +3752,7 @@ function App() {
             <div className="rooms-heading-actions">
               <div className="reservations-heading-note">
                 <span className="reservations-note-icon">▦</span>
-                <div><strong>{hoteles.length} registros</strong><span>Hoteles en el sistema</span></div>
+                <div><strong>{hotelesVisibles.length} registros</strong><span>Hoteles en el sistema</span></div>
               </div>
             </div>
           </div>
@@ -3697,7 +3760,7 @@ function App() {
           <div className="room-summary rooms-modern-summary hotels-summary">
             <article className="room-summary-card reservation-stat reservation-stat-total">
               <div className="reservation-stat-top"><span>Total de hoteles registrados</span><span className="reservation-stat-icon">▤</span></div>
-              <h2>{hoteles.length}</h2><small>Registros en HOTEL</small>
+              <h2>{hotelesVisibles.length}</h2><small>Registros en HOTEL</small>
             </article>
             <article className="room-summary-card reservation-stat rooms-stat-available">
               <div className="reservation-stat-top"><span>Habitaciones asociadas</span><span className="reservation-stat-icon">⌂</span></div>
@@ -3716,7 +3779,7 @@ function App() {
           <div className="room-list reservations-list rooms-modern-list hotels-list">
             <div className="room-list-header reservations-list-header">
               <div><h2>Listado de hoteles</h2><p>Consulta los atributos registrados en la tabla HOTEL.</p></div>
-              <div className="reservations-header-actions"><span className="reservations-total-pill">{hotelesFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroHotel}>＋ Nuevo hotel</button></div>
+              <div className="reservations-header-actions"><span className="reservations-total-pill">{hotelesFiltrados.length} resultados</span>{puedeCrearEnModulo('Hoteles') && <button type="button" className="reservation-new-button" onClick={abrirRegistroHotel}>＋ Nuevo hotel</button>}</div>
             </div>
             <DynamicListFilterPanel
               title="Hoteles"
@@ -3750,8 +3813,8 @@ function App() {
                       <td>{hotel.ciudad}</td><td>{hotel.pais}</td><td>{hotel.telefono}</td><td>{hotel.email}</td><td>{hotel.categoria}</td>
                       <td className="reservation-action-cell"><div className="reservation-row-actions">
                         <button type="button" className="reservation-detail-button" onClick={() => setHotelSeleccionado(hotel)}>Ver detalle</button>
-                        <button type="button" className="reservation-edit-button" onClick={() => abrirEdicionHotel(hotel)}>Editar</button>
-                        <button type="button" className="reservation-cancel-record-button" onClick={() => setHotelPorEliminar(hotel)}>Eliminar</button>
+                        {puedeEditarEnModulo('Hoteles') && <button type="button" className="reservation-edit-button" onClick={() => abrirEdicionHotel(hotel)}>Editar</button>}
+                        {puedeEliminarEnModulo() && <button type="button" className="reservation-cancel-record-button" onClick={() => setHotelPorEliminar(hotel)}>Eliminar</button>}
                       </div></td>
                     </tr>
                   ))}
@@ -3759,11 +3822,11 @@ function App() {
                 </tbody>
               </table>
             </div>
-            <div className="reservations-list-footer"><span>Mostrando {hotelesFiltrados.length} de {hoteles.length} hoteles</span><span>Tabla HOTEL del modelo relacional</span></div>
+            <div className="reservations-list-footer"><span>Mostrando {hotelesFiltrados.length} de {hotelesVisibles.length} hoteles</span><span>Tabla HOTEL del modelo relacional</span></div>
             <ListPagination totalItems={hotelesFiltrados.length} {...hotelesPagina} onPageChange={pagina => cambiarPaginaLista('hoteles', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('hoteles', tamano)} />
           </div>
 
-          {mostrarModalHotel && (
+          {mostrarModalHotel && (hotelEnEdicion ? puedeEditarEnModulo('Hoteles') : puedeCrearEnModulo('Hoteles')) && (
             <div className="reservation-modal-backdrop" onMouseDown={evento => { if (evento.target === evento.currentTarget) setMostrarModalHotel(false) }}>
               <section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="hotel-form-title">
                 <div className="reservation-modal-header"><div><span className="reservations-eyebrow">{hotelEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="hotel-form-title">{hotelEnEdicion ? `Editar hotel: ${hotelEnEdicion.nombre}` : 'Registrar hotel'}</h2><p>Completa los atributos propios de la tabla HOTEL.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalHotel(false)} aria-label="Cerrar ventana">×</button></div>
@@ -3820,7 +3883,7 @@ function App() {
                   { key: 'nombre', label: 'NOMBRE', render: servicio => servicio.nombre },
                   { key: 'precio', label: 'PRECIO', render: servicio => formatearMontoReserva(servicio.precio) },
                 ]} />
-                <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setHotelSeleccionado(null)}>Cerrar detalle</button><button type="button" className="reservation-save-button" onClick={() => { const hotel = hotelSeleccionado; setHotelSeleccionado(null); abrirEdicionHotel(hotel) }}>Editar hotel</button></div>
+                <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setHotelSeleccionado(null)}>Cerrar detalle</button>{puedeEditarEnModulo('Hoteles') && <button type="button" className="reservation-save-button" onClick={() => { const hotel = hotelSeleccionado; setHotelSeleccionado(null); abrirEdicionHotel(hotel) }}>Editar hotel</button>}</div>
               </section>
             </div>
           })()}
@@ -3859,7 +3922,7 @@ function App() {
     // ========================================
 
     if (seccionActiva === 'Dashboard') {
-      const totalIngresos = pagos.reduce((total, pago) => total + pago.monto, 0)
+      const totalIngresos = pagosVisibles.reduce((total, pago) => total + Number(pago.monto || 0), 0)
       const disponibles = habitacionesVisibles.filter(h => h.estado === 'DISPONIBLE').length
       const ocupadas = habitacionesVisibles.filter(h => h.estado === 'OCUPADA').length
       const enMantenimiento = habitacionesVisibles.filter(h => h.estado === 'MANTENIMIENTO').length
@@ -3868,10 +3931,10 @@ function App() {
         : 0
       const hoy = new Date()
       const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
-      const reservasProximas = reservas
+      const reservasProximas = reservasVisibles
         .filter(r => r.estado === 'CONFIRMADA' && r.fecha_entrada >= fechaHoy)
         .sort((a, b) => a.fecha_entrada.localeCompare(b.fecha_entrada))
-      const pagosRecientes = [...pagos].sort((a, b) => String(b.fecha_pago || '').localeCompare(String(a.fecha_pago || ''))).slice(0, 3)
+      const pagosRecientes = [...pagosVisibles].sort((a, b) => String(b.fecha_pago || '').localeCompare(String(a.fecha_pago || ''))).slice(0, 3)
       const formatearFecha = (fecha) => new Date(`${fecha}T00:00:00`).toLocaleDateString('es-PE', {
         day: '2-digit', month: 'short', year: 'numeric'
       })
@@ -3882,7 +3945,7 @@ function App() {
             <div className="welcome">
               <span className="eyebrow">PANEL DE CONTROL</span>
               <h1>¡Bienvenido de nuevo!</h1>
-              <p>Este es el resumen general de Hotel Los Andes.</p>
+              <p>{employeeSession ? `Este es el resumen de ${employeeSession.hotel?.nombre ?? 'su hotel'}.` : 'Este es el resumen general de Hotel Los Andes.'}</p>
             </div>
             <div className="dashboard-date">
               <span className="date-icon">▦</span>
