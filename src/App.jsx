@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
 
 // ==========================================
@@ -467,10 +467,19 @@ function DetailPrimaryKey({ label, value, accessory = null }) {
   )
 }
 
+function useAnimatedModalValue(initialValue, scheduleUpdate) {
+  const [value, setValue] = useState(initialValue)
+  return [value, nextValue => scheduleUpdate(setValue, nextValue)]
+}
+
+function cantidadConEtiqueta(cantidad, singular, plural = `${singular}s`) {
+  return `${cantidad} ${cantidad === 1 ? singular : plural}`
+}
+
 function DetailRelatedRecords({ title, rows, columns, emptyMessage }) {
   return (
     <section className="reservation-detail-group detail-related-records">
-      <div className="detail-related-heading"><h3>{title}</h3><span>{rows.length} registros</span></div>
+      <div className="detail-related-heading"><h3>{title}</h3><span>{cantidadConEtiqueta(rows.length, 'registro')}</span></div>
       {rows.length ? <div className="table-container detail-related-table-wrap"><table className="rooms-table detail-related-table"><thead><tr>{columns.map(column => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.id ?? row.id_estadia ?? row.id_pago ?? row.id_consumo ?? row.id_reserva ?? row.id_mantenimiento}>{columns.map(column => <td key={column.key}>{column.render(row)}</td>)}</tr>)}</tbody></table></div> : <p className="detail-related-empty">{emptyMessage}</p>}
     </section>
   )
@@ -479,6 +488,11 @@ function DetailRelatedRecords({ title, rows, columns, emptyMessage }) {
 function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, employeeSession, onAdminAuthenticated, onEmployeeContinue }) {
   const [phase, setPhase] = useState('intro')
   const [screen, setScreen] = useState('selection')
+  const [accessTransition, setAccessTransition] = useState(null)
+  const accessOriginRectRef = useRef(null)
+  const accessFormCardRef = useRef(null)
+  const accessTransitionTimerRef = useRef(null)
+  const accessAnimationRef = useRef(null)
   const [employeeId, setEmployeeId] = useState('')
   const [employeeDocument, setEmployeeDocument] = useState('')
   const [employeeError, setEmployeeError] = useState('')
@@ -491,14 +505,85 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
   const [showAdminPassword, setShowAdminPassword] = useState(false)
 
   useEffect(() => {
-    const transitionTimer = window.setTimeout(() => setPhase('transition'), 1900)
-    const readyTimer = window.setTimeout(() => setPhase('ready'), 3000)
+    const motionPreference = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    const prefersReducedMotion = motionPreference?.matches ?? false
+
+    const transitionTimer = window.setTimeout(() => setPhase('transition'), prefersReducedMotion ? 900 : 1900)
+    const readyTimer = window.setTimeout(() => setPhase('ready'), prefersReducedMotion ? 1350 : 3000)
 
     return () => {
       window.clearTimeout(transitionTimer)
       window.clearTimeout(readyTimer)
     }
   }, [])
+
+  useEffect(() => () => window.clearTimeout(accessTransitionTimerRef.current), [])
+
+  function getOriginTransform(targetRect) {
+    const origin = accessOriginRectRef.current
+    if (!origin || !targetRect.width || !targetRect.height) return ''
+    const offsetX = origin.left - targetRect.left
+    const offsetY = origin.top - targetRect.top
+    return `translate(${offsetX}px, ${offsetY}px) scale(${origin.width / targetRect.width}, ${origin.height / targetRect.height})`
+  }
+
+  function resetToOptions() {
+    setScreen('selection')
+    setAccessTransition(null)
+    accessOriginRectRef.current = null
+    setEmployeeError('')
+    setVerifiedEmployee(null)
+    setEmployeeContinueError('')
+    setShowEmployeeDocument(false)
+    setAdminMessage('')
+    setShowAdminPassword(false)
+  }
+
+  useLayoutEffect(() => {
+    const formCard = accessFormCardRef.current
+    if (!accessTransition || !formCard || !accessOriginRectRef.current) return undefined
+
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    const originTransform = getOriginTransform(formCard.getBoundingClientRect())
+    const duration = prefersReducedMotion ? 420 : 600
+    const frames = accessTransition === 'opening'
+      ? [{ transform: originTransform, opacity: 0.24 }, { transform: 'none', opacity: 1 }]
+      : [{ transform: 'none', opacity: 1 }, { transform: originTransform, opacity: 0.24 }]
+    const animation = formCard.animate(frames, {
+      duration,
+      easing: 'cubic-bezier(.65, 0, .35, 1)',
+      fill: 'both',
+    })
+    accessAnimationRef.current = animation
+    let transitionFinalized = false
+    const finalizeTransition = () => {
+      if (transitionFinalized) return
+      transitionFinalized = true
+      animation.onfinish = null
+      try {
+        if (animation.playState !== 'finished') animation.finish()
+        animation.commitStyles()
+      } catch {
+        const finalFrame = frames[frames.length - 1]
+        formCard.style.transform = finalFrame.transform
+        formCard.style.opacity = String(finalFrame.opacity)
+      }
+      animation.cancel()
+      accessAnimationRef.current = null
+      window.clearTimeout(accessTransitionTimerRef.current)
+      if (accessTransition === 'opening') setAccessTransition(null)
+      else resetToOptions()
+    }
+    animation.onfinish = finalizeTransition
+    accessTransitionTimerRef.current = window.setTimeout(finalizeTransition, duration + 100)
+
+    return () => {
+      animation.onfinish = null
+      animation.cancel()
+      accessAnimationRef.current = null
+      window.clearTimeout(accessTransitionTimerRef.current)
+    }
+  }, [accessTransition, screen])
 
   const options = [
     {
@@ -525,8 +610,11 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
     },
   ]
 
-  function openAccess(access) {
+  function openAccess(access, event) {
+    if (accessTransition) return
+    accessOriginRectRef.current = event.currentTarget.getBoundingClientRect()
     setScreen(access)
+    setAccessTransition('opening')
     setEmployeeError('')
     setAdminMessage('')
     setVerifiedEmployee(null)
@@ -534,17 +622,8 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
   }
 
   function returnToOptions() {
-    setScreen('selection')
-    setEmployeeId('')
-    setEmployeeDocument('')
-    setEmployeeError('')
-    setVerifiedEmployee(null)
-    setEmployeeContinueError('')
-    setShowEmployeeDocument(false)
-    setAdminUsername('')
-    setAdminPassword('')
-    setAdminMessage('')
-    setShowAdminPassword(false)
+    if (accessTransition || !accessOriginRectRef.current || !accessFormCardRef.current) return
+    setAccessTransition('closing')
   }
 
   function validateEmployeeAccess(event) {
@@ -601,7 +680,7 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
   if (isAdminAuthenticated || employeeSession) return null
 
   return (
-    <main className={`welcome-screen welcome-screen--${phase}`} aria-label={screen === 'selection' ? 'Bienvenida a HotelManager' : `Acceso ${screen.startsWith('employee') ? 'de empleado' : 'de administrador'}`}>
+    <main className={`welcome-screen welcome-screen--${phase}${accessTransition ? ' welcome-screen--access-transitioning' : ''}`} aria-label={screen === 'selection' ? 'Bienvenida a HotelManager' : `Acceso ${screen.startsWith('employee') ? 'de empleado' : 'de administrador'}`}>
       <div className="welcome-brand" aria-label="HotelManager">
         <span className="welcome-brand-mark" aria-hidden="true">
           <svg viewBox="0 0 56 56">
@@ -613,7 +692,7 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
       </div>
 
       {phase !== 'intro' && (
-        <section className={`welcome-access welcome-access--${screen}`} key={screen} aria-labelledby="welcome-title">
+        <section className={`welcome-access welcome-access--${screen}${accessTransition ? ` welcome-access--origin-${accessTransition}` : ''}`} key={screen} aria-labelledby="welcome-title" inert={Boolean(accessTransition)}>
           {screen === 'selection' && <>
             <p className="welcome-eyebrow">GESTIÓN HOTELERA</p>
             <h1 id="welcome-title">Bienvenido a HotelManager</h1>
@@ -621,7 +700,7 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
 
             <div className="welcome-options">
               {options.map(option => (
-                <button key={option.id} type="button" className="welcome-option" onClick={() => openAccess(option.id)}>
+                <button key={option.id} type="button" className="welcome-option" onClick={event => openAccess(option.id, event)} disabled={Boolean(accessTransition)}>
                   <span className={`welcome-option-icon welcome-option-icon--${option.id}`}>{option.icon}</span>
                   <span className="welcome-option-copy">
                     <strong>{option.title}</strong>
@@ -632,11 +711,11 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
               ))}
             </div>
 
-            <p className="welcome-note">El acceso y la autenticación se habilitarán en una siguiente etapa.</p>
+            <p className="welcome-note">Acceso de demostración. Selecciona el entorno que corresponde a tu cuenta.</p>
           </>}
 
-          {(screen === 'employee' || screen === 'admin') && <div className="welcome-form-card">
-            <button type="button" className="welcome-back-button" onClick={returnToOptions}>← Volver a la bienvenida</button>
+          {(screen === 'employee' || screen === 'admin') && <div ref={accessFormCardRef} className="welcome-form-card welcome-form-card--origin">
+            <button type="button" className="welcome-back-button" onClick={returnToOptions} disabled={Boolean(accessTransition)}>← Volver a la bienvenida</button>
             <div className="welcome-form-heading">
               <span className={`welcome-option-icon welcome-option-icon--${screen}`}>{renderAccessIcon(screen)}</span>
               <div>
@@ -662,8 +741,8 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
             </form>}
           </div>}
 
-          {screen === 'employee-verified' && verifiedEmployee && <div className="welcome-form-card welcome-verified-card">
-            <button type="button" className="welcome-back-button" onClick={returnToOptions}>← Volver a la bienvenida</button>
+          {screen === 'employee-verified' && verifiedEmployee && <div ref={accessFormCardRef} className="welcome-form-card welcome-verified-card welcome-form-card--origin">
+            <button type="button" className="welcome-back-button" onClick={returnToOptions} disabled={Boolean(accessTransition)}>← Volver a la bienvenida</button>
             <div className="welcome-form-heading">
               <span className="welcome-verified-mark" aria-hidden="true">✓</span>
               <div><p className="welcome-form-eyebrow">CREDENCIALES VERIFICADAS</p><h1 id="welcome-title">Identidad confirmada</h1></div>
@@ -692,15 +771,74 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, emplo
 function App() {
 
   // ESTADO GENERAL
+  const [modalClosing, setModalClosing] = useState(false)
+  const modalTransitionRef = useRef({ timer: null, closeUpdates: [], openUpdates: [] })
+  const panelEntryTimerRef = useRef(null)
+  const moduleTransitionTimerRef = useRef(null)
+  const [panelEntering, setPanelEntering] = useState(false)
+  const [moduleLeaving, setModuleLeaving] = useState(false)
+
+  const scheduleModalStateUpdate = (setter, nextValue) => {
+    const transition = modalTransitionRef.current
+    const isClosingValue = nextValue === null || nextValue === false
+
+    if (isClosingValue) {
+      transition.closeUpdates.push(() => setter(nextValue))
+      if (transition.timer === null) {
+        setModalClosing(true)
+        const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+        transition.timer = window.setTimeout(() => {
+          transition.closeUpdates.splice(0).forEach(update => update())
+          setModalClosing(false)
+          transition.timer = null
+          transition.openUpdates.splice(0).forEach(update => update())
+        }, prefersReducedMotion ? 130 : 300)
+      }
+      return
+    }
+
+    if (transition.timer !== null) {
+      transition.openUpdates.push(() => setter(nextValue))
+      return
+    }
+
+    setter(nextValue)
+  }
+
+  function triggerPanelEntry() {
+    window.clearTimeout(panelEntryTimerRef.current)
+    setPanelEntering(true)
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    panelEntryTimerRef.current = window.setTimeout(() => setPanelEntering(false), prefersReducedMotion ? 150 : 450)
+  }
+
+  useEffect(() => () => {
+    window.clearTimeout(modalTransitionRef.current.timer)
+    window.clearTimeout(panelEntryTimerRef.current)
+    window.clearTimeout(moduleTransitionTimerRef.current)
+  }, [])
+
   const [seccionActiva, setSeccionActiva] = useState('Dashboard')
+
+  function navegarAModulo(siguienteSeccion) {
+    if (moduleTransitionTimerRef.current !== null || moduleLeaving || siguienteSeccion === seccionActiva || !puedeVerModulo(siguienteSeccion)) return
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+    setModuleLeaving(true)
+    moduleTransitionTimerRef.current = window.setTimeout(() => {
+      setSeccionActiva(siguienteSeccion)
+      setModuleLeaving(false)
+      moduleTransitionTimerRef.current = null
+    }, prefersReducedMotion ? 110 : 150)
+  }
   const [adminAuthenticated, setAdminAuthenticated] = useState(false)
   const [employeeSession, setEmployeeSession] = useState(null)
   const [hoteles, setHoteles] = useState(hotelesIniciales)
   const [busquedaHotel, setBusquedaHotel] = useState('')
-  const [mostrarModalHotel, setMostrarModalHotel] = useState(false)
+  const [mostrarModalHotel, setMostrarModalHotel] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [hotelEnEdicion, setHotelEnEdicion] = useState(null)
-  const [hotelSeleccionado, setHotelSeleccionado] = useState(null)
-  const [hotelPorEliminar, setHotelPorEliminar] = useState(null)
+  const [hotelSeleccionado, setHotelSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [hotelPorEliminar, setHotelPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioHotel, setFormularioHotel] = useState({ nombre: '', direccion: '', ciudad: '', pais: '', telefono: '', email: '', categoria: '' })
   const [errorHotel, setErrorHotel] = useState('')
 
@@ -709,20 +847,20 @@ function App() {
   const [tiposHabitacion, setTiposHabitacion] = useState(tiposHabitacionIniciales)
   const [subseccionHabitaciones, setSubseccionHabitaciones] = useState('habitaciones')
   const [busquedaTipo, setBusquedaTipo] = useState('')
-  const [mostrarModalTipo, setMostrarModalTipo] = useState(false)
+  const [mostrarModalTipo, setMostrarModalTipo] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [tipoEnEdicion, setTipoEnEdicion] = useState(null)
-  const [tipoPorEliminar, setTipoPorEliminar] = useState(null)
-  const [tipoSeleccionado, setTipoSeleccionado] = useState(null)
+  const [tipoPorEliminar, setTipoPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [tipoSeleccionado, setTipoSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioTipo, setFormularioTipo] = useState({ nombre: '', descripcion: '', capacidad: '', precio_base: '' })
   const [errorTipo, setErrorTipo] = useState('')
-  const [mostrarModalHabitacion, setMostrarModalHabitacion] = useState(false)
+  const [mostrarModalHabitacion, setMostrarModalHabitacion] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [nuevaHabitacion, setNuevaHabitacion] = useState({ numero: '', tipo: '', piso: '', estado: 'DISPONIBLE', hotel_id_hotel: hoteles[0] ? String(hoteles[0].id_hotel) : '' })
   const [errorHabitacion, setErrorHabitacion] = useState('')
-  const [habitacionSeleccionada, setHabitacionSeleccionada] = useState(null)
+  const [habitacionSeleccionada, setHabitacionSeleccionada] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [habitacionEnEdicion, setHabitacionEnEdicion] = useState(null)
   const [formularioHabitacionEdicion, setFormularioHabitacionEdicion] = useState({ numero: '', tipo: '', piso: '', estado: 'DISPONIBLE', hotel_id_hotel: '' })
   const [errorEdicionHabitacion, setErrorEdicionHabitacion] = useState('')
-  const [habitacionPorEliminar, setHabitacionPorEliminar] = useState(null)
+  const [habitacionPorEliminar, setHabitacionPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [busqueda, setBusqueda] = useState('')
 
   // ESTADOS DE RESERVAS
@@ -730,18 +868,18 @@ function App() {
   const [subseccionReservas, setSubseccionReservas] = useState('reservas')
   const [estadias, setEstadias] = useState(estadiasIniciales)
   const [busquedaEstadia, setBusquedaEstadia] = useState('')
-  const [mostrarModalEstadia, setMostrarModalEstadia] = useState(false)
+  const [mostrarModalEstadia, setMostrarModalEstadia] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [estadiaEnEdicion, setEstadiaEnEdicion] = useState(null)
-  const [estadiaSeleccionada, setEstadiaSeleccionada] = useState(null)
-  const [estadiaPorEliminar, setEstadiaPorEliminar] = useState(null)
+  const [estadiaSeleccionada, setEstadiaSeleccionada] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [estadiaPorEliminar, setEstadiaPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioEstadia, setFormularioEstadia] = useState({ reserva_id_reserva: '', empleado_id_empleado: '', fecha_check_in: '', fecha_check_out: '' })
   const [errorEstadia, setErrorEstadia] = useState('')
   const [busquedaReserva, setBusquedaReserva] = useState('')
   const [filtrosAvanzadosReserva, setFiltrosAvanzadosReserva] = useState([])
   const [campoFiltroReserva, setCampoFiltroReserva] = useState('')
   const [valorFiltroReserva, setValorFiltroReserva] = useState('')
-  const [mostrarModalReserva, setMostrarModalReserva] = useState(false)
-  const [reservaSeleccionada, setReservaSeleccionada] = useState(null)
+  const [mostrarModalReserva, setMostrarModalReserva] = useAnimatedModalValue(false, scheduleModalStateUpdate)
+  const [reservaSeleccionada, setReservaSeleccionada] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [clienteReserva, setClienteReserva] = useState('')
   const [habitacionReserva, setHabitacionReserva] = useState('')
   const [entradaReserva, setEntradaReserva] = useState('')
@@ -752,17 +890,17 @@ function App() {
   const [reservaEnEdicion, setReservaEnEdicion] = useState(null)
   const [formularioEdicion, setFormularioEdicion] = useState({ cliente: '', habitacion: '', entrada: '', salida: '', total: '', adelanto: '0', estado: 'CONFIRMADA' })
   const [errorEdicion, setErrorEdicion] = useState('')
-  const [reservaPorCancelar, setReservaPorCancelar] = useState(null)
-  const [reservaPorReactivar, setReservaPorReactivar] = useState(null)
+  const [reservaPorCancelar, setReservaPorCancelar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [reservaPorReactivar, setReservaPorReactivar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
 
   // ESTADOS DE CLIENTES
   const [clientes, setClientes] = useState(clientesIniciales)
   const [clientesRegistradosEnSesion, setClientesRegistradosEnSesion] = useState([])
   const [busquedaCliente, setBusquedaCliente] = useState('')
-  const [mostrarModalCliente, setMostrarModalCliente] = useState(false)
+  const [mostrarModalCliente, setMostrarModalCliente] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [clienteEnEdicion, setClienteEnEdicion] = useState(null)
-  const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
-  const [clientePorEliminar, setClientePorEliminar] = useState(null)
+  const [clienteSeleccionado, setClienteSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [clientePorEliminar, setClientePorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioCliente, setFormularioCliente] = useState({ nombre: '', apellido: '', documento: '', email: '', telefono: '', nacionalidad: '' })
   const [errorCliente, setErrorCliente] = useState('')
   // ESTADOS DE EMPLEADOS
@@ -770,27 +908,27 @@ function App() {
   const [cargos, setCargos] = useState(cargosIniciales)
   const [subseccionEmpleados, setSubseccionEmpleados] = useState('empleados')
   const [busquedaCargo, setBusquedaCargo] = useState('')
-  const [mostrarModalCargo, setMostrarModalCargo] = useState(false)
+  const [mostrarModalCargo, setMostrarModalCargo] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [cargoEnEdicion, setCargoEnEdicion] = useState(null)
-  const [cargoSeleccionado, setCargoSeleccionado] = useState(null)
-  const [cargoPorEliminar, setCargoPorEliminar] = useState(null)
+  const [cargoSeleccionado, setCargoSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [cargoPorEliminar, setCargoPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioCargo, setFormularioCargo] = useState({ nombre: '', salario_base: '' })
   const [errorCargo, setErrorCargo] = useState('')
   const [busquedaEmpleado, setBusquedaEmpleado] = useState('')
-  const [mostrarModalEmpleado, setMostrarModalEmpleado] = useState(false)
+  const [mostrarModalEmpleado, setMostrarModalEmpleado] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [empleadoEnEdicion, setEmpleadoEnEdicion] = useState(null)
-  const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState(null)
-  const [empleadoPorEliminar, setEmpleadoPorEliminar] = useState(null)
+  const [empleadoSeleccionado, setEmpleadoSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [empleadoPorEliminar, setEmpleadoPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioEmpleado, setFormularioEmpleado] = useState({ nombre: '', apellido: '', documento: '', fechaIngreso: '', cargo_id_cargo: '1', hotel_id_hotel: hoteles[0] ? String(hoteles[0].id_hotel) : '' })
   const [errorEmpleado, setErrorEmpleado] = useState('')
 
   // ESTADOS DE MANTENIMIENTO
   const [mantenimientos, setMantenimientos] = useState(mantenimientosIniciales)
   const [busquedaMantenimiento, setBusquedaMantenimiento] = useState('')
-  const [mostrarModalMantenimiento, setMostrarModalMantenimiento] = useState(false)
+  const [mostrarModalMantenimiento, setMostrarModalMantenimiento] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [mantenimientoEnEdicion, setMantenimientoEnEdicion] = useState(null)
-  const [mantenimientoSeleccionado, setMantenimientoSeleccionado] = useState(null)
-  const [mantenimientoPorEliminar, setMantenimientoPorEliminar] = useState(null)
+  const [mantenimientoSeleccionado, setMantenimientoSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [mantenimientoPorEliminar, setMantenimientoPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioMantenimiento, setFormularioMantenimiento] = useState({ fecha_inicio: '', tipo: '', costo: '', habitacion_id_habitacion: '', empleado_id_empleado: '' })
   const [errorMantenimiento, setErrorMantenimiento] = useState('')
 
@@ -799,27 +937,27 @@ function App() {
   const [consumosServicios, setConsumosServicios] = useState(consumosServiciosIniciales)
   const [subseccionServicios, setSubseccionServicios] = useState('consumos')
   const [busquedaConsumo, setBusquedaConsumo] = useState('')
-  const [mostrarModalConsumo, setMostrarModalConsumo] = useState(false)
+  const [mostrarModalConsumo, setMostrarModalConsumo] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [consumoEnEdicion, setConsumoEnEdicion] = useState(null)
-  const [consumoSeleccionado, setConsumoSeleccionado] = useState(null)
-  const [consumoPorEliminar, setConsumoPorEliminar] = useState(null)
+  const [consumoSeleccionado, setConsumoSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [consumoPorEliminar, setConsumoPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioConsumo, setFormularioConsumo] = useState({ estadia_id_estadia: '', servicio_id_servicio: '', cantidad: '1', subtotal: '' })
   const [errorConsumo, setErrorConsumo] = useState('')
   const [busquedaServicio, setBusquedaServicio] = useState('')
-  const [mostrarModalServicio, setMostrarModalServicio] = useState(false)
+  const [mostrarModalServicio, setMostrarModalServicio] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [servicioEnEdicion, setServicioEnEdicion] = useState(null)
-  const [servicioSeleccionado, setServicioSeleccionado] = useState(null)
-  const [servicioPorEliminar, setServicioPorEliminar] = useState(null)
+  const [servicioSeleccionado, setServicioSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [servicioPorEliminar, setServicioPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioServicio, setFormularioServicio] = useState({ nombre: '', precio: '', hotel_id_hotel: hoteles[0] ? String(hoteles[0].id_hotel) : '' })
   const [errorServicio, setErrorServicio] = useState('')
 
   // ESTADOS DE PAGOS
   const [pagos, setPagos] = useState(pagosIniciales)
   const [busquedaPago, setBusquedaPago] = useState('')
-  const [mostrarModalPago, setMostrarModalPago] = useState(false)
+  const [mostrarModalPago, setMostrarModalPago] = useAnimatedModalValue(false, scheduleModalStateUpdate)
   const [pagoEnEdicion, setPagoEnEdicion] = useState(null)
-  const [pagoSeleccionado, setPagoSeleccionado] = useState(null)
-  const [pagoPorEliminar, setPagoPorEliminar] = useState(null)
+  const [pagoSeleccionado, setPagoSeleccionado] = useAnimatedModalValue(null, scheduleModalStateUpdate)
+  const [pagoPorEliminar, setPagoPorEliminar] = useAnimatedModalValue(null, scheduleModalStateUpdate)
   const [formularioPago, setFormularioPago] = useState({ estadia_id_estadia: '', fecha_pago: '', monto: '', metodo_pago: '' })
   const [errorPago, setErrorPago] = useState('')
 
@@ -2757,7 +2895,7 @@ function App() {
             <div className="room-list reservations-list">
               <div className="room-list-header reservations-list-header"><div><h2>Listado de estadías</h2><p>Registros de la tabla ESTADIA relacionados con su reserva y empleado.</p></div><div className="reservations-header-actions"><span className="reservations-total-pill">{estadiasFiltradas.length} resultados</span><button type="button" className="reservation-new-button" hidden={!puedeCrearEnModulo('Estadias')} onClick={abrirRegistroEstadia} disabled={reservas.every(item => item.estado === 'CANCELADA') || empleadosDelHotel.length === 0} title={empleadosDelHotel.length === 0 ? 'Registra un empleado antes de crear una estadía.' : undefined}>＋ Nueva estadía</button></div></div>
               <DynamicListFilterPanel title="Estadías" listKey="estadias" searchValue={busquedaEstadia} searchPlaceholder="Buscar por identificador, fecha, reserva o cliente..." attributes={atributosFiltroEstadias} activeFilters={obtenerFiltrosActivosLista('estadias')} onSearchChange={valor => actualizarFiltroLista('estadias', setBusquedaEstadia, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaEstadia(''); limpiarFiltrosAvanzadosLista(lista) }} />
-<div className="table-container reservations-table-container"><table className="rooms-table reservations-table"><thead><tr><SortableHeader field='id' list='estadias' label='ID_ESTADIA' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><SortableHeader field='entrada' list='estadias' label='FECHA_CHECK_IN' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><SortableHeader field='salida' list='estadias' label='FECHA_CHECK_OUT' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><th className="reservation-action-heading">ACCIONES</th></tr></thead><tbody>
+<div className="table-container reservations-table-container"><table className="rooms-table reservations-table estadias-table"><thead><tr><SortableHeader field='id' list='estadias' label='ID_ESTADIA' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><SortableHeader field='entrada' list='estadias' label='FECHA_CHECK_IN' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><SortableHeader field='salida' list='estadias' label='FECHA_CHECK_OUT' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><th className="reservation-action-heading">ACCIONES</th></tr></thead><tbody>
                 {estadiasPagina.rows.map(estadia => <tr key={estadia.id_estadia}><td>{estadia.id_estadia}</td><td>{formatearFechaReserva(estadia.fecha_check_in)}</td><td>{formatearFechaReserva(estadia.fecha_check_out)}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setEstadiaSeleccionada(estadia)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Estadias')} onClick={() => abrirEdicionEstadia(estadia)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => { setEstadiaPorEliminar(estadia); setErrorEstadia('') }}>Eliminar</button></div></td></tr>)}
                 {estadiasFiltradas.length === 0 && <tr><td colSpan="4" className="empty-message">{busquedaEstadia ? 'No se encontraron estadías con ese criterio.' : 'Todavía no hay estadías registradas en ESTADIA.'}</td></tr>}
               </tbody></table></div>
@@ -3185,11 +3323,11 @@ function App() {
           <div className="reservations-heading">
             <div className="welcome">
               <span className="reservations-eyebrow">GESTIÓN HOTELERA</span>
-              <h1>Gestión de empleados</h1>
-              <p>{employeeSession ? `Consulta el personal de ${employeeSession.hotel.nombre}.` : 'Consulta y administra los empleados registrados en Hotel Los Andes.'}</p>
+              <h1>{subseccionEmpleados === 'empleados' ? 'Gestión de empleados' : 'Gestión de cargos'}</h1>
+              <p>{subseccionEmpleados === 'cargos' ? 'Consulta los cargos y sus salarios base registrados.' : employeeSession ? `Consulta el personal de ${employeeSession.hotel.nombre}.` : 'Consulta y administra los empleados registrados en Hotel Los Andes.'}</p>
             </div>
             <div className="rooms-heading-actions">
-              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{subseccionEmpleados === 'empleados' ? empleadosDelHotel.length : cargos.length} registros</strong><span>{subseccionEmpleados === 'empleados' ? 'Empleados en el sistema' : 'Cargos en el sistema'}</span></div></div>
+              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{cantidadConEtiqueta(subseccionEmpleados === 'empleados' ? empleadosDelHotel.length : cargos.length, 'registro')}</strong><span>{subseccionEmpleados === 'empleados' ? 'Empleados en el sistema' : 'Cargos en el sistema'}</span></div></div>
             </div>
           </div>
 
@@ -3752,7 +3890,7 @@ function App() {
             <div className="rooms-heading-actions">
               <div className="reservations-heading-note">
                 <span className="reservations-note-icon">▦</span>
-                <div><strong>{hotelesVisibles.length} registros</strong><span>Hoteles en el sistema</span></div>
+                <div><strong>{cantidadConEtiqueta(hotelesVisibles.length, 'registro')}</strong><span>Hoteles en el sistema</span></div>
               </div>
             </div>
           </div>
@@ -3779,7 +3917,7 @@ function App() {
           <div className="room-list reservations-list rooms-modern-list hotels-list">
             <div className="room-list-header reservations-list-header">
               <div><h2>Listado de hoteles</h2><p>Consulta los atributos registrados en la tabla HOTEL.</p></div>
-              <div className="reservations-header-actions"><span className="reservations-total-pill">{hotelesFiltrados.length} resultados</span>{puedeCrearEnModulo('Hoteles') && <button type="button" className="reservation-new-button" onClick={abrirRegistroHotel}>＋ Nuevo hotel</button>}</div>
+              <div className="reservations-header-actions"><span className="reservations-total-pill">{cantidadConEtiqueta(hotelesFiltrados.length, 'resultado')}</span>{puedeCrearEnModulo('Hoteles') && <button type="button" className="reservation-new-button" onClick={abrirRegistroHotel}>＋ Nuevo hotel</button>}</div>
             </div>
             <DynamicListFilterPanel
               title="Hoteles"
@@ -4087,8 +4225,8 @@ function App() {
 
   return (
     <>
-      <WelcomeScreen empleados={empleados} cargos={cargos} hoteles={hoteles} isAdminAuthenticated={adminAuthenticated} employeeSession={employeeSession} onAdminAuthenticated={() => setAdminAuthenticated(true)} onEmployeeContinue={session => { setEmployeeSession(session); setSeccionActiva(moduloInicialEmpleado(session.cargo?.nombre)) }} />
-      <div className="app welcome-covered-app" aria-hidden={!adminAuthenticated && !employeeSession} inert={!adminAuthenticated && !employeeSession}>
+      <WelcomeScreen empleados={empleados} cargos={cargos} hoteles={hoteles} isAdminAuthenticated={adminAuthenticated} employeeSession={employeeSession} onAdminAuthenticated={() => { setAdminAuthenticated(true); triggerPanelEntry() }} onEmployeeContinue={session => { setEmployeeSession(session); setSeccionActiva(moduloInicialEmpleado(session.cargo?.nombre)); triggerPanelEntry() }} />
+      <div className={`app welcome-covered-app${panelEntering ? ' app-panel-entering' : ''}`} data-modal-closing={modalClosing ? 'true' : undefined} aria-hidden={!adminAuthenticated && !employeeSession} inert={(!adminAuthenticated && !employeeSession) || modalClosing}>
 
       <aside className="sidebar">
 
@@ -4103,7 +4241,7 @@ function App() {
             <button
               key={opcion}
               className={seccionActiva === opcion ? 'active' : ''}
-              onClick={() => { if (puedeVerModulo(opcion)) setSeccionActiva(opcion) }}
+              onClick={() => navegarAModulo(opcion)}
             >
               {opcion}
             </button>
@@ -4127,7 +4265,7 @@ function App() {
                 : seccionActiva}
             </h2>
 
-            <p>Bienvenido al sistema de gestión del hotel</p>
+            <p>Panel de gestión hotelera</p>
           </div>
 
           <div className="user">
@@ -4137,7 +4275,7 @@ function App() {
 
         </header>
 
-        {mostrarContenido()}
+        <div className={`hm-module-view${moduleLeaving ? ' hm-module-view-leaving' : ''}`} key={seccionActiva} inert={moduleLeaving}>{mostrarContenido()}</div>
 
       </main>
 

@@ -1,25 +1,31 @@
 
 :root {
-  --hm-canvas: #f4f6f9;
+  --hm-canvas: #f3f6f9;
   --hm-surface: #ffffff;
-  --hm-sidebar: #17243a;
-  --hm-navy: #1d3b5f;
-  --hm-navy-hover: #28527e;
-  --hm-teal: #2999a3;
-  --hm-accent-blue: #438ee0;
-  --hm-accent-teal: #2eaaa0;
-  --hm-accent-purple: #8871d5;
-  --hm-accent-gold: #e2a044;
-  --hm-ink: #1c2b40;
-  --hm-text: #263247;
-  --hm-muted: #78869a;
-  --hm-border: #e8edf3;
-  --hm-border-soft: #edf0f4;
-  --hm-table-head: #f5f8fb;
-  --hm-radius-control: 8px;
-  --hm-radius-panel: 12px;
-  --hm-card-shadow: 0 3px 12px rgba(20, 40, 70, 0.04);
-  --hm-panel-shadow: 0 3px 12px rgba(20, 40, 70, 0.04);
+  --hm-sidebar: #142338;
+  --hm-navy: #183653;
+  --hm-navy-hover: #244b70;
+  --hm-teal: #21888f;
+  --hm-accent-blue: #3978b7;
+  --hm-accent-teal: #278f86;
+  --hm-accent-purple: #7466b3;
+  --hm-accent-gold: #bd8735;
+  --hm-ink: #1b2b3d;
+  --hm-text: #334155;
+  --hm-muted: #69798d;
+  --hm-border: #dfe6ed;
+  --hm-border-soft: #e9eef3;
+  --hm-table-head: #f3f6f9;
+  --hm-radius-control: 10px;
+  --hm-radius-panel: 16px;
+  --hm-card-shadow: 0 4px 16px rgba(20, 40, 70, 0.055);
+  --hm-panel-shadow: 0 8px 24px rgba(20, 40, 70, 0.06);
+  --hm-motion-fast: 160ms;
+  --hm-motion-enter: 350ms;
+  --hm-motion-modal: 300ms;
+  --hm-motion-exit: 150ms;
+  --hm-motion-panel: 450ms;
+  --hm-motion-ease: cubic-bezier(.2, .75, .25, 1);
 }
 
 /* ESTRUCTURA GENERAL */
@@ -1898,6 +1904,9 @@
 }
 
 .welcome-brand {
+  --welcome-brand-destination-top: clamp(22px, 5vh, 48px);
+  --welcome-brand-destination-left: clamp(24px, 6vw, 88px);
+  --welcome-brand-destination-transform: translate(0, 0) scale(.78);
   position: absolute;
   z-index: 2;
   top: 50%;
@@ -1908,21 +1917,17 @@
   width: max-content;
   max-width: calc(100vw - 32px);
   color: #fff;
-  opacity: .12;
+  opacity: 1;
   transform: translate(-50%, -50%) scale(.72);
-  transition: top .95s cubic-bezier(.2, .75, .25, 1), left .95s cubic-bezier(.2, .75, .25, 1), transform .95s cubic-bezier(.2, .75, .25, 1), opacity .95s ease;
-}
-
-.welcome-screen--intro .welcome-brand {
-  animation: welcome-brand-arrive .85s cubic-bezier(.2, .75, .25, 1) forwards;
+  animation: welcome-brand-journey 3s linear both;
 }
 
 .welcome-screen--transition .welcome-brand,
 .welcome-screen--ready .welcome-brand {
-  top: clamp(22px, 5vh, 48px);
-  left: clamp(24px, 6vw, 88px);
+  top: var(--welcome-brand-destination-top);
+  left: var(--welcome-brand-destination-left);
   opacity: 1;
-  transform: scale(.78);
+  transform: var(--welcome-brand-destination-transform);
 }
 
 .welcome-brand-mark {
@@ -1969,7 +1974,7 @@
   transform: translateY(18px);
 }
 
-.welcome-screen--transition .welcome-access {
+.welcome-screen--transition .welcome-access--selection {
   animation: welcome-access-enter .82s .12s cubic-bezier(.2, .75, .25, 1) forwards;
 }
 
@@ -2092,14 +2097,33 @@
   line-height: 1.5;
 }
 
-@keyframes welcome-brand-arrive {
-  from { opacity: .12; transform: translate(-50%, -50%) scale(.72); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-
-@keyframes welcome-brand-arrive-reduced {
-  from { opacity: .65; transform: translate(-50%, -50%) scale(.94); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+@keyframes welcome-brand-journey {
+  0% {
+    top: 50%;
+    left: 50%;
+    opacity: .16;
+    transform: translate(-50%, -50%) scale(.72);
+    animation-timing-function: cubic-bezier(.2, .75, .25, 1);
+  }
+  28% {
+    top: 50%;
+    left: 50%;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  62% {
+    top: 50%;
+    left: 50%;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    animation-timing-function: cubic-bezier(.22, .72, .24, 1);
+  }
+  100% {
+    top: var(--welcome-brand-destination-top);
+    left: var(--welcome-brand-destination-left);
+    opacity: 1;
+    transform: var(--welcome-brand-destination-transform);
+  }
 }
 
 @keyframes welcome-access-enter {
@@ -2108,11 +2132,17 @@
 }
 
 @media (max-width: 760px) {
+  .welcome-brand {
+    --welcome-brand-destination-top: 20px;
+    --welcome-brand-destination-left: 50%;
+    --welcome-brand-destination-transform: translate(-50%, 0) scale(.72);
+  }
+
   .welcome-screen--transition .welcome-brand,
   .welcome-screen--ready .welcome-brand {
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%) scale(.72);
+    top: var(--welcome-brand-destination-top);
+    left: var(--welcome-brand-destination-left);
+    transform: var(--welcome-brand-destination-transform);
   }
 
   .welcome-access { width: min(560px, calc(100% - 36px)); padding-top: 130px; }
@@ -2136,11 +2166,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome-brand { transition-duration: .35s; }
+  .welcome-brand { animation-duration: 1.35s !important; }
   .welcome-option,
   .welcome-option-action > span { transition: none; }
-  .welcome-screen--intro .welcome-brand { animation-name: welcome-brand-arrive-reduced; animation-duration: .8s; }
-  .welcome-screen--transition .welcome-access { animation-duration: .4s; animation-delay: 0s; }
+  .welcome-screen--transition .welcome-access { animation: none; opacity: 1; transform: none; }
 }
 
 /* Formularios provisionales de acceso */
@@ -2158,8 +2187,6 @@
   text-align: left;
 }
 
-.welcome-access--admin,
-.welcome-access--employee,
 .welcome-access--employee-verified { animation: welcome-route-enter .42s cubic-bezier(.2, .75, .25, 1) both; }
 
 .welcome-back-button {
@@ -2269,4 +2296,571 @@
   .welcome-back-button,
   .welcome-input-field input,
   .welcome-submit-button { transition: none; }
+}
+
+/* Sistema visual compartido: aplicación administrativa */
+.sidebar {
+  background: linear-gradient(180deg, #172a42 0%, #122238 100%);
+  padding: 26px 18px;
+}
+
+.sidebar nav button {
+  min-height: 44px;
+  border: 1px solid transparent;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.sidebar nav button:hover {
+  background-color: rgba(255, 255, 255, .075);
+  transform: translateX(2px);
+}
+
+.sidebar nav button.active {
+  background: linear-gradient(100deg, rgba(51, 117, 161, .36), rgba(37, 79, 111, .48));
+  border-color: rgba(144, 194, 211, .18);
+  box-shadow: inset 3px 0 #59b8b5;
+}
+
+.main-content::before {
+  background:
+    linear-gradient(rgba(243, 246, 249, .82), rgba(243, 246, 249, .82)),
+    url('./assets/hotel-background.png') center center / cover no-repeat;
+}
+
+.topbar {
+  min-height: 82px;
+  padding: 18px clamp(20px, 3vw, 42px);
+  border-bottom-color: var(--hm-border);
+  box-shadow: 0 2px 12px rgba(18, 39, 61, .035);
+}
+
+.topbar h2 { color: var(--hm-ink); letter-spacing: -.2px; }
+.topbar p { color: var(--hm-muted); }
+.avatar { background: #e7f2f5; color: var(--hm-navy); box-shadow: inset 0 0 0 1px #d6e8eb; }
+
+.dashboard,
+.rooms-section,
+.reservations-section,
+.rooms-modern-section,
+.clients-section,
+.employees-section,
+.services-section,
+.payments-section,
+.maintenance-section {
+  width: 100%;
+  max-width: 1840px;
+  margin-inline: auto;
+  padding: clamp(22px, 2.8vw, 42px) clamp(18px, 3vw, 48px) 48px;
+}
+
+.reservations-heading { align-items: center; gap: 20px; margin-bottom: 25px; }
+.reservations-eyebrow,
+.dashboard .eyebrow { color: var(--hm-teal); letter-spacing: 1.45px; }
+.reservations-section .welcome h1,
+.clients-section .welcome h1,
+.employees-section .welcome h1,
+.services-section .welcome h1,
+.payments-section .welcome h1,
+.maintenance-section .welcome h1,
+.rooms-modern-section .welcome h1 {
+  color: var(--hm-ink);
+  font-size: clamp(25px, 2vw, 31px);
+  font-weight: 760;
+  letter-spacing: -.55px;
+  line-height: 1.2;
+}
+
+.reservations-section .welcome p,
+.clients-section .welcome p,
+.employees-section .welcome p,
+.services-section .welcome p,
+.payments-section .welcome p,
+.maintenance-section .welcome p,
+.rooms-modern-section .welcome p { color: var(--hm-muted); line-height: 1.6; }
+
+.reservations-heading-note {
+  min-height: 62px;
+  border-color: var(--hm-border);
+  border-radius: 14px;
+  box-shadow: var(--hm-card-shadow);
+}
+
+.reservations-note-icon { background: #e8f3f5; color: var(--hm-teal); }
+.reservations-heading-note strong { color: var(--hm-ink); }
+.reservations-heading-note div span { color: var(--hm-muted); }
+
+.reservation-stat,
+.room-summary-card,
+.dashboard .stat-card {
+  border-color: var(--hm-border);
+  border-radius: var(--hm-radius-panel);
+  background: rgba(255, 255, 255, .98);
+  box-shadow: var(--hm-card-shadow);
+}
+
+.reservation-stat:hover,
+.dashboard .stat-card:hover { box-shadow: 0 10px 26px rgba(20, 40, 70, .09); }
+.reservation-stat h2,
+.room-summary-card h2,
+.dashboard .stat-card h2 { color: var(--hm-ink); font-variant-numeric: tabular-nums; }
+.reservation-stat small,
+.dashboard .stat-card .stat-foot { color: #69798d; }
+
+.reservations-list,
+.room-list {
+  border: 1px solid rgba(220, 229, 237, .95);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, .985);
+  box-shadow: var(--hm-panel-shadow);
+}
+
+.reservations-list-header h2,
+.room-list-header h2 { color: var(--hm-ink); font-size: 20px; letter-spacing: -.25px; }
+.reservations-list-header p,
+.room-list-header p { color: var(--hm-muted); font-size: 13px; line-height: 1.55; }
+.reservations-total-pill { background: #edf5f7; color: #286c78; font-size: 11px; }
+
+.rooms-subnav,
+.employees-subnav,
+.services-subnav {
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px;
+  border: 1px solid var(--hm-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 2px 8px rgba(20, 40, 70, .035);
+}
+
+.rooms-subnav button,
+.employees-subnav button,
+.services-subnav-button { min-height: 38px; border-radius: 9px; transition: color .18s ease, background .18s ease, box-shadow .18s ease; }
+.rooms-subnav button.active,
+.employees-subnav button.active,
+.services-subnav-button.active { background: var(--hm-navy); box-shadow: 0 3px 8px rgba(24, 54, 83, .16); }
+
+.reservation-search,
+.reservations-filter-builder,
+.filter-field input,
+.list-filter-row > select,
+.reservations-filter-builder-controls input,
+.reservations-filter-builder-controls select,
+.reservation-form-field input,
+.reservation-form-field select,
+.reservation-form-field textarea,
+.welcome-input-field input {
+  border-color: #d4dee7;
+  border-radius: 10px;
+}
+
+.reservation-search:focus-within,
+.filter-field input:focus,
+.list-filter-row > select:focus,
+.reservations-filter-builder-controls input:focus,
+.reservations-filter-builder-controls select:focus,
+.reservation-form-field input:focus,
+.reservation-form-field select:focus,
+.reservation-form-field textarea:focus {
+  border-color: var(--hm-teal);
+  box-shadow: 0 0 0 3px rgba(33, 136, 143, .13);
+}
+
+.reservation-form-field > span { color: #34465a; }
+.reservation-form-field small { color: var(--hm-muted); }
+.reservations-filter-builder { background: #f7f9fb; }
+
+.reservation-new-button,
+.reservation-save-button,
+.reservations-filter-add-button,
+.welcome-submit-button {
+  min-height: 42px;
+  border-radius: 10px;
+  background: var(--hm-navy);
+  box-shadow: 0 3px 8px rgba(24, 54, 83, .1);
+}
+
+.reservation-new-button:hover,
+.reservation-save-button:hover,
+.reservations-filter-add-button:hover:not(:disabled),
+.welcome-submit-button:hover { background: var(--hm-navy-hover); }
+
+.reservation-cancel-button,
+.list-clear-button,
+.list-pagination-controls button {
+  min-height: 40px;
+  border-color: #d6e0e8;
+  border-radius: 10px;
+}
+
+.reservation-cancel-button:hover,
+.list-clear-button:hover,
+.list-pagination-controls button:hover:not(:disabled) { border-color: #b7cbd8; background: #f3f7f9; }
+.reservation-confirm-danger-button { min-height: 40px; border-radius: 10px; }
+
+.reservation-detail-button,
+.reservation-edit-button,
+.reservation-cancel-record-button,
+.reservation-reactivate-button {
+  min-height: 34px;
+  border-radius: 8px;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+}
+
+.reservation-detail-button:hover,
+.reservation-edit-button:hover:not(:disabled),
+.reservation-cancel-record-button:hover:not(:disabled),
+.reservation-reactivate-button:hover:not(:disabled) { transform: translateY(-1px); }
+.reservation-row-actions { gap: 7px; }
+
+.table-container,
+.reservations-table-container,
+.detail-related-table-wrap { border-radius: 11px; scrollbar-color: #b8c8d4 #f1f4f6; scrollbar-width: thin; }
+
+.main-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--hm-text);
+}
+
+.main-content table th {
+  background: var(--hm-table-head);
+  color: #607086;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .5px;
+}
+
+.main-content table td { color: #46566b; font-size: 13px; }
+.main-content table tbody tr { transition: background-color .15s ease; }
+.main-content table tbody tr:hover { background: #f5f8fa; }
+
+.reservation-modal-backdrop { background: rgba(12, 27, 44, .58); }
+.reservation-modal,
+.reservation-detail-modal,
+.reservation-confirm-modal {
+  border-color: rgba(220, 229, 237, .95);
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(8, 25, 45, .24);
+}
+
+.reservation-modal-header h2,
+.reservation-confirm-modal h2 { color: var(--hm-ink); letter-spacing: -.3px; }
+.reservation-modal-header p,
+.reservation-confirm-modal p { color: #64758a; line-height: 1.65; }
+.reservation-modal-close { min-width: 38px; min-height: 38px; border-radius: 10px; }
+.reservation-detail-group { border-color: var(--hm-border); border-radius: 13px; background: #fff; }
+.reservation-detail-group h3 { color: var(--hm-navy); }
+.reservation-detail-item span { color: #728197; letter-spacing: .2px; }
+.detail-related-heading > span { background: #edf5f7; color: #286c78; }
+.detail-related-empty { border-radius: 11px; background: #f7f9fb; }
+
+.dashboard-heading { margin-bottom: 28px; }
+.dashboard .welcome h1 { color: var(--hm-ink); letter-spacing: -.65px; }
+.dashboard-panel { border-color: var(--hm-border); border-radius: 16px; box-shadow: var(--hm-panel-shadow); }
+.dashboard-section-title h2,
+.panel-heading h2 { color: var(--hm-ink); }
+.dashboard-section-title p,
+.panel-heading p { color: var(--hm-muted); }
+
+.list-pagination { color: #66778b; }
+.list-pagination,
+.reservations-heading-note div span { font-size: 12px; }
+.list-pagination select { min-height: 38px; border-color: #d6e0e8; border-radius: 9px; }
+.list-pagination-controls button:disabled { background: #f6f8fa; }
+
+.sidebar button:focus-visible,
+.main-content button:focus-visible,
+.welcome-screen button:focus-visible,
+.main-content a:focus-visible {
+  outline: 3px solid rgba(33, 136, 143, .42);
+  outline-offset: 2px;
+}
+
+.main-content button:disabled { cursor: not-allowed; }
+.reservation-form-error,
+.welcome-form-error { border-radius: 10px; }
+.reservation-confirm-notice { border-radius: 11px; }
+
+@media (max-width: 900px) {
+  .app { flex-direction: column; }
+  .sidebar {
+    width: 100%;
+    min-height: auto;
+    padding: 15px 18px 13px;
+  }
+  .logo { margin: 0 0 12px; font-size: 20px; }
+  .menu-title { margin: 0 0 8px; }
+  .sidebar nav { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .sidebar nav button { flex: 1 1 135px; width: auto; min-height: 40px; padding: 9px 11px; font-size: 13px; }
+  .sidebar nav button:hover { transform: none; }
+  .sidebar-footer { display: none; }
+  .topbar { min-height: 72px; }
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 650px) {
+  .dashboard,
+  .rooms-section,
+  .reservations-section,
+  .rooms-modern-section,
+  .clients-section,
+  .employees-section,
+  .services-section,
+  .payments-section,
+  .maintenance-section { padding: 21px 15px 32px; }
+  .sidebar nav button { flex-basis: calc(50% - 6px); }
+  .topbar { padding: 15px; }
+  .user { gap: 8px; font-size: 13px; }
+  .avatar { width: 36px; height: 36px; }
+  .reservations-heading { align-items: flex-start; }
+  .reservations-heading-note { width: 100%; }
+  .rooms-subnav,
+  .employees-subnav,
+  .services-subnav { width: 100%; overflow-x: auto; }
+  .rooms-subnav button,
+  .employees-subnav button,
+  .services-subnav-button { flex: 0 0 auto; }
+  .reservation-modal-backdrop { align-items: flex-end; padding: 10px; }
+  .reservation-modal,
+  .reservation-detail-modal,
+  .reservation-confirm-modal { width: 100%; max-height: calc(100svh - 20px); padding: 21px 17px; border-radius: 18px 18px 13px 13px; }
+  .reservation-modal-footer { gap: 9px; }
+  .reservation-row-actions { flex-wrap: wrap; }
+  .list-pagination { align-items: flex-start; flex-direction: column; }
+  .list-pagination-controls { width: 100%; justify-content: space-between; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Estadías tiene pocas columnas: no debe heredar el ancho amplio de Reservas. */
+.estadias-table { min-width: 760px; }
+
+/* Movimiento compartido y breve para superficies, feedback y controles. */
+.reservation-modal-backdrop {
+  animation: reservationFadeIn 280ms var(--hm-motion-ease) both;
+}
+
+.reservation-modal,
+.reservation-detail-modal,
+.reservation-confirm-modal {
+  animation: reservation-modal-enter var(--hm-motion-modal) var(--hm-motion-ease) both;
+  transform-origin: center;
+}
+
+.reservation-form-error,
+.reservation-confirm-notice,
+.welcome-form-error,
+.welcome-form-notice {
+  animation: feedback-enter 240ms var(--hm-motion-ease) both;
+}
+
+.reservation-stat,
+.dashboard .stat-card,
+.dashboard-panel,
+.reservation-detail-group {
+  transition: box-shadow 180ms var(--hm-motion-ease), border-color 180ms var(--hm-motion-ease), background-color 180ms var(--hm-motion-ease);
+}
+
+@keyframes reservation-modal-enter {
+  from { opacity: 0; transform: translateY(24px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes feedback-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reservation-modal-backdrop,
+  .reservation-modal,
+  .reservation-detail-modal,
+  .reservation-confirm-modal,
+  .reservation-form-error,
+  .reservation-confirm-notice,
+  .welcome-form-error,
+  .welcome-form-notice {
+    animation: none !important;
+  }
+
+  .reservation-stat,
+  .dashboard .stat-card,
+  .dashboard-panel,
+  .reservation-detail-group {
+    transition: none !important;
+  }
+}
+
+/* Transiciones de navegación y cierre compartidas. La animación de bienvenida
+   conserva sus reglas propias para que su recorrido aprobado no cambie. */
+.app-panel-entering .sidebar {
+  animation: hm-sidebar-enter var(--hm-motion-panel) var(--hm-motion-ease) both;
+}
+
+.app-panel-entering .main-content {
+  animation: hm-panel-enter var(--hm-motion-panel) var(--hm-motion-ease) both;
+}
+
+.hm-module-view {
+  animation: hm-view-enter var(--hm-motion-enter) var(--hm-motion-ease) both;
+}
+
+.hm-module-view-leaving {
+  pointer-events: none;
+  animation: hm-view-leave var(--hm-motion-exit) ease-in both;
+}
+
+/* Los paneles condicionales se montan al cambiar de pestaña; se animan por
+   separado para que el contenido no aparezca de golpe bajo una pestaña activa. */
+.hm-module-view .rooms-subnav ~ .room-summary,
+.hm-module-view .rooms-subnav ~ .room-list,
+.hm-module-view .employees-subnav ~ .room-summary,
+.hm-module-view .employees-subnav ~ .room-list,
+.hm-module-view .services-subnav ~ .room-summary,
+.hm-module-view .services-subnav ~ .room-list {
+  animation: hm-surface-enter 320ms var(--hm-motion-ease) both;
+}
+
+.app[data-modal-closing="true"] .reservation-modal-backdrop {
+  pointer-events: none;
+  animation: hm-modal-backdrop-exit var(--hm-motion-modal) ease both;
+}
+
+.app[data-modal-closing="true"] .reservation-modal,
+.app[data-modal-closing="true"] .reservation-detail-modal,
+.app[data-modal-closing="true"] .reservation-confirm-modal {
+  animation: hm-modal-dialog-exit var(--hm-motion-modal) var(--hm-motion-ease) both;
+}
+
+.rooms-subnav button,
+.employees-subnav button,
+.services-subnav-button,
+.list-pagination button,
+.reservations-active-filter button,
+.reservation-modal-close,
+.reservation-cancel-button,
+.reservation-save-button,
+.reservation-confirm-danger-button {
+  transition-duration: var(--hm-motion-fast);
+  transition-timing-function: var(--hm-motion-ease);
+}
+
+@keyframes hm-panel-enter {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hm-sidebar-enter {
+  from { opacity: .55; transform: translateX(-22px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hm-view-enter {
+  from { opacity: 0; transform: translateY(28px) scale(.99); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hm-view-leave {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-18px); }
+}
+
+@keyframes hm-surface-enter {
+  /* Keep list containers untransformed: some contain fixed-position modals. */
+  from { opacity: .35; }
+  to { opacity: 1; }
+}
+
+@keyframes hm-modal-backdrop-exit {
+  to { opacity: 0; }
+}
+
+@keyframes hm-modal-dialog-exit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(22px) scale(.96); }
+}
+
+@keyframes hm-reduced-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hm-reduced-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduce displacement but keep brief opacity feedback instead of instant swaps. */
+  .app-panel-entering .sidebar,
+  .app-panel-entering .main-content {
+    animation: hm-reduced-fade-in 150ms ease-out both !important;
+  }
+
+  .hm-module-view {
+    animation: hm-reduced-fade-in 150ms ease-out both !important;
+  }
+
+  .hm-module-view-leaving {
+    animation: hm-reduced-fade-out 110ms ease-in both !important;
+  }
+
+  .hm-module-view .rooms-subnav ~ .room-summary,
+  .hm-module-view .rooms-subnav ~ .room-list,
+  .hm-module-view .employees-subnav ~ .room-summary,
+  .hm-module-view .employees-subnav ~ .room-list,
+  .hm-module-view .services-subnav ~ .room-summary,
+  .hm-module-view .services-subnav ~ .room-list,
+  .reservation-form-error,
+  .reservation-confirm-notice,
+  .welcome-form-error,
+  .welcome-form-notice {
+    animation: hm-reduced-fade-in 120ms ease-out both !important;
+  }
+
+  .reservation-modal-backdrop {
+    animation: hm-reduced-fade-in 140ms ease-out both !important;
+  }
+
+  .reservation-modal,
+  .reservation-detail-modal,
+  .reservation-confirm-modal {
+    animation: hm-reduced-fade-in 140ms ease-out both !important;
+  }
+
+  .app[data-modal-closing="true"] .reservation-modal-backdrop {
+    animation: hm-reduced-fade-out 130ms ease-in both !important;
+  }
+
+  .app[data-modal-closing="true"] .reservation-modal,
+  .app[data-modal-closing="true"] .reservation-detail-modal,
+  .app[data-modal-closing="true"] .reservation-confirm-modal {
+    animation: hm-reduced-fade-out 130ms ease-in both !important;
+  }
+}
+
+/* Expansión de los formularios de acceso desde la tarjeta elegida. */
+.welcome-access--origin-opening,
+.welcome-access--origin-closing {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.welcome-form-card--origin {
+  position: relative;
+  transform-origin: top left;
+  will-change: transform, opacity;
+}
+
+.welcome-screen--access-transitioning .welcome-form-card--origin {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-form-card--origin {
+    will-change: opacity;
+  }
 }
