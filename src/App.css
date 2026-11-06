@@ -1276,6 +1276,7 @@
 .reservation-detail-modal .reservation-modal-footer { margin-top: 22px; padding-top: 18px; }
 
 .reservation-detail-modal .reservation-modal-footer button { min-height: 40px; }
+.reservation-detail-modal .reservation-modal-footer button[hidden] { display: none; }
 
 .reservation-detail-code-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; padding: 13px 15px; border: 1px solid #e7edf3; border-radius: 10px; background: #f8fafc; }
 

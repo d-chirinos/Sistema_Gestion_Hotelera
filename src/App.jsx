@@ -329,6 +329,17 @@ const atributosFiltrosReserva = [
   { campo: 'monto_adelanto', etiqueta: 'MONTO_ADELANTO', tipo: 'numero' },
 ]
 
+const permisosRecepcionista = {
+  Reservas: { visualizar: true, registrar: true, editar: true, cancelar: true },
+  Estadias: { visualizar: true, registrar: true, editar: true },
+  Clientes: { visualizar: true, registrar: true, editar: true },
+  Habitaciones: { visualizar: true },
+  'Tipos de habitación': { visualizar: true },
+  Pagos: { visualizar: true, registrar: true },
+  Consumos: { visualizar: true, registrar: true },
+  Servicios: { visualizar: true },
+}
+
 function SortableHeader({ label, field, sort, onSort }) {
   const active = sort?.field === field
   const direction = active ? sort.direction : null
@@ -431,12 +442,13 @@ function DetailRelatedRecords({ title, rows, columns, emptyMessage }) {
   )
 }
 
-function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, onAdminAuthenticated }) {
+function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, employeeSession, onAdminAuthenticated, onEmployeeContinue }) {
   const [phase, setPhase] = useState('intro')
   const [screen, setScreen] = useState('selection')
   const [employeeId, setEmployeeId] = useState('')
   const [employeeDocument, setEmployeeDocument] = useState('')
   const [employeeError, setEmployeeError] = useState('')
+  const [employeeContinueError, setEmployeeContinueError] = useState('')
   const [verifiedEmployee, setVerifiedEmployee] = useState(null)
   const [showEmployeeDocument, setShowEmployeeDocument] = useState(false)
   const [adminUsername, setAdminUsername] = useState('')
@@ -484,6 +496,7 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, onAdm
     setEmployeeError('')
     setAdminMessage('')
     setVerifiedEmployee(null)
+    setEmployeeContinueError('')
   }
 
   function returnToOptions() {
@@ -492,6 +505,7 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, onAdm
     setEmployeeDocument('')
     setEmployeeError('')
     setVerifiedEmployee(null)
+    setEmployeeContinueError('')
     setShowEmployeeDocument(false)
     setAdminUsername('')
     setAdminPassword('')
@@ -532,11 +546,24 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, onAdm
     onAdminAuthenticated()
   }
 
+  function continueEmployeeAccess() {
+    if (verifiedEmployee?.cargo?.nombre !== 'Recepcionista') {
+      setEmployeeContinueError('En esta etapa, el entorno operativo solo está habilitado para el cargo Recepcionista.')
+      return
+    }
+    if (!verifiedEmployee.hotel) {
+      setEmployeeContinueError('No se encontró un hotel asociado a este empleado. Contacta al administrador.')
+      return
+    }
+    setEmployeeContinueError('')
+    onEmployeeContinue(verifiedEmployee)
+  }
+
   function renderAccessIcon(id) {
     return options.find(option => option.id === id)?.icon ?? options[1].icon
   }
 
-  if (isAdminAuthenticated) return null
+  if (isAdminAuthenticated || employeeSession) return null
 
   return (
     <main className={`welcome-screen welcome-screen--${phase}`} aria-label={screen === 'selection' ? 'Bienvenida a HotelManager' : `Acceso ${screen.startsWith('employee') ? 'de empleado' : 'de administrador'}`}>
@@ -613,7 +640,9 @@ function WelcomeScreen({ empleados, cargos, hoteles, isAdminAuthenticated, onAdm
               <div><dt>Cargo relacionado</dt><dd>{verifiedEmployee.cargo?.nombre ?? 'No encontrado'}</dd></div>
               <div><dt>Hotel relacionado</dt><dd>{verifiedEmployee.hotel?.nombre ?? 'No encontrado'}</dd></div>
             </dl>
-            <p className="welcome-form-footnote">El entorno operativo del empleado se habilitará en una siguiente etapa.</p>
+            {employeeContinueError && <p className="welcome-form-error" role="alert">{employeeContinueError}</p>}
+            <p className="welcome-form-footnote">El acceso operativo se habilita según el cargo y el hotel relacionados.</p>
+            <button type="button" className="welcome-submit-button" onClick={continueEmployeeAccess}>Ingresar al sistema</button>
           </div>}
         </section>
       )}
@@ -630,6 +659,7 @@ function App() {
   // ESTADO GENERAL
   const [seccionActiva, setSeccionActiva] = useState('Dashboard')
   const [adminAuthenticated, setAdminAuthenticated] = useState(false)
+  const [employeeSession, setEmployeeSession] = useState(null)
   const [hoteles, setHoteles] = useState(hotelesIniciales)
   const [busquedaHotel, setBusquedaHotel] = useState('')
   const [mostrarModalHotel, setMostrarModalHotel] = useState(false)
@@ -691,6 +721,7 @@ function App() {
 
   // ESTADOS DE CLIENTES
   const [clientes, setClientes] = useState(clientesIniciales)
+  const [clientesRegistradosEnSesion, setClientesRegistradosEnSesion] = useState([])
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [mostrarModalCliente, setMostrarModalCliente] = useState(false)
   const [clienteEnEdicion, setClienteEnEdicion] = useState(null)
@@ -842,7 +873,7 @@ function App() {
   }
 
   // OPCIONES DEL MENU
-  const opcionesMenu = [
+  const opcionesMenuAdministrativas = [
     'Dashboard',
     'Hoteles',
     'Reservas',
@@ -854,6 +885,16 @@ function App() {
     'Mantenimiento',
   ]
 
+  const permisosActivosEmpleado = employeeSession?.cargo?.nombre === 'Recepcionista' ? permisosRecepcionista : {}
+  const puedeVerModulo = modulo => !employeeSession || Boolean(permisosActivosEmpleado[modulo]?.visualizar)
+  const puedeCrearEnModulo = modulo => !employeeSession || Boolean(permisosActivosEmpleado[modulo]?.registrar)
+  const puedeEditarEnModulo = modulo => !employeeSession || Boolean(permisosActivosEmpleado[modulo]?.editar)
+  const puedeEliminarEnModulo = () => !employeeSession
+  const puedeCancelarReservas = () => !employeeSession || Boolean(permisosActivosEmpleado.Reservas?.cancelar)
+  const opcionesMenu = employeeSession
+    ? ['Reservas', 'Habitaciones', 'Clientes', 'Consumos', 'Pagos'].filter(modulo => puedeVerModulo(modulo))
+    : opcionesMenuAdministrativas
+
   // ==========================================
   // RELACIONES DEL MODELO RELACIONAL (JOIN EN MEMORIA)
   // ==========================================
@@ -864,11 +905,40 @@ function App() {
   const obtenerHotelEmpleado = (empleado) =>
     hoteles.find(hotel => Number(hotel.id_hotel) === Number(empleado.hotel_id_hotel))
 
+  const hotelSesionId = Number(employeeSession?.hotel?.id_hotel)
+  const habitacionesVisibles = employeeSession
+    ? habitaciones.filter(habitacion => Number(habitacion.hotel_id_hotel) === hotelSesionId)
+    : habitaciones
+  const habitacionEnHotelSesion = habitacionId => habitacionesVisibles.some(habitacion => Number(habitacion.id) === Number(habitacionId))
+  const reservaEnHotelSesion = reserva => habitacionEnHotelSesion(reserva.habitacion_id_habitacion)
+  const reservasVisibles = employeeSession ? reservas.filter(reservaEnHotelSesion) : reservas
+  const reservaIdsVisibles = new Set(reservasVisibles.map(reserva => Number(reserva.id_reserva)))
+  const estadiasVisibles = employeeSession
+    ? estadias.filter(estadia => reservaIdsVisibles.has(Number(estadia.reserva_id_reserva)))
+    : estadias
+  const estadiaIdsVisibles = new Set(estadiasVisibles.map(estadia => Number(estadia.id_estadia)))
+  const clientesDeReservasVisibles = new Set(reservasVisibles.map(reserva => Number(reserva.cliente_id_cliente)))
+  const clientesVisibles = employeeSession
+    ? clientes.filter(cliente => clientesDeReservasVisibles.has(Number(cliente.id)) || clientesRegistradosEnSesion.includes(Number(cliente.id)))
+    : clientes
+  const empleadosDelHotel = employeeSession
+    ? empleados.filter(empleado => Number(empleado.hotel_id_hotel) === hotelSesionId)
+    : empleados
+  const serviciosVisibles = employeeSession
+    ? servicios.filter(servicio => Number(servicio.hotel_id_hotel) === hotelSesionId)
+    : servicios
+  const consumosVisibles = employeeSession
+    ? consumosServicios.filter(consumo => estadiaIdsVisibles.has(Number(consumo.estadia_id_estadia)))
+    : consumosServicios
+  const pagosVisibles = employeeSession
+    ? pagos.filter(pago => estadiaIdsVisibles.has(Number(pago.estadia_id_estadia)))
+    : pagos
+
   const obtenerClienteReserva = (reserva) =>
-    clientes.find(cliente => cliente.id === reserva.cliente_id_cliente)
+    clientesVisibles.find(cliente => Number(cliente.id) === Number(reserva.cliente_id_cliente))
 
   const obtenerHabitacionReserva = (reserva) =>
-    habitaciones.find(habitacion => habitacion.id === reserva.habitacion_id_habitacion)
+    habitacionesVisibles.find(habitacion => Number(habitacion.id) === Number(reserva.habitacion_id_habitacion))
 
   const nombreClienteReserva = (reserva) => {
     const cliente = obtenerClienteReserva(reserva)
@@ -901,15 +971,15 @@ function App() {
     valor: String(registro[campoId]),
     etiqueta: etiqueta(registro),
   }))
-  const opcionesHotelesFiltro = opcionesFiltroDesde(hoteles, 'id_hotel', hotel => hotel.nombre)
-  const opcionesHabitacionesFiltro = opcionesFiltroDesde(habitaciones, 'id', habitacion => `Habitación ${habitacion.numero}`)
+  const opcionesHotelesFiltro = opcionesFiltroDesde(employeeSession ? [employeeSession.hotel] : hoteles, 'id_hotel', hotel => hotel.nombre)
+  const opcionesHabitacionesFiltro = opcionesFiltroDesde(habitacionesVisibles, 'id', habitacion => `Habitación ${habitacion.numero}`)
   const opcionesTiposHabitacionFiltro = opcionesFiltroDesde(tiposHabitacion, 'id_tipo', tipo => tipo.nombre)
   const opcionesCargosFiltro = opcionesFiltroDesde(cargos, 'id_cargo', cargo => cargo.nombre)
-  const opcionesEmpleadosFiltro = opcionesFiltroDesde(empleados, 'id', empleado => `${empleado.nombre} ${empleado.apellido}`)
-  const opcionesReservasFiltro = opcionesFiltroDesde(reservas, 'id_reserva', reserva => `${codigoReserva(reserva.id_reserva)} · ${nombreClienteReserva(reserva)}`)
-  const opcionesEstadiasFiltro = opcionesFiltroDesde(estadias, 'id_estadia', estadia => `Estadía ${estadia.id_estadia} · ${formatearFechaReserva(estadia.fecha_check_in)}`)
-  const opcionesServiciosFiltro = opcionesFiltroDesde(servicios, 'id', servicio => servicio.nombre)
-  const opcionesMetodosPagoFiltro = [...new Set(pagos.map(pago => pago.metodo_pago).filter(Boolean))].map(metodo => ({ valor: metodo, etiqueta: metodo }))
+  const opcionesEmpleadosFiltro = opcionesFiltroDesde(empleadosDelHotel, 'id', empleado => `${empleado.nombre} ${empleado.apellido}`)
+  const opcionesReservasFiltro = opcionesFiltroDesde(reservasVisibles, 'id_reserva', reserva => `${codigoReserva(reserva.id_reserva)} · ${nombreClienteReserva(reserva)}`)
+  const opcionesEstadiasFiltro = opcionesFiltroDesde(estadiasVisibles, 'id_estadia', estadia => `Estadía ${estadia.id_estadia} · ${formatearFechaReserva(estadia.fecha_check_in)}`)
+  const opcionesServiciosFiltro = opcionesFiltroDesde(serviciosVisibles, 'id', servicio => servicio.nombre)
+  const opcionesMetodosPagoFiltro = [...new Set(pagosVisibles.map(pago => pago.metodo_pago).filter(Boolean))].map(metodo => ({ valor: metodo, etiqueta: metodo }))
   const opcionesEstadosHabitacionFiltro = [...new Set(habitaciones.map(habitacion => habitacion.estado).filter(Boolean))].map(estado => ({ valor: estado, etiqueta: estado }))
 
   const atributosFiltroHabitaciones = [
@@ -1005,6 +1075,7 @@ function App() {
   })
 
   function abrirRegistroHotel() {
+    if (employeeSession) return
     setHotelEnEdicion(null)
     setFormularioHotel({ nombre: '', direccion: '', ciudad: '', pais: '', telefono: '', email: '', categoria: '' })
     setErrorHotel('')
@@ -1012,6 +1083,7 @@ function App() {
   }
 
   function abrirEdicionHotel(hotel) {
+    if (employeeSession) return
     setHotelEnEdicion(hotel)
     setFormularioHotel({
       nombre: hotel.nombre ?? '', direccion: hotel.direccion ?? '', ciudad: hotel.ciudad ?? '',
@@ -1023,6 +1095,7 @@ function App() {
 
   function guardarHotel(evento) {
     evento.preventDefault()
+    if (employeeSession) return
     const datos = Object.fromEntries(Object.entries(formularioHotel).map(([campo, valor]) => [campo, valor.trim()]))
     if (Object.values(datos).some(valor => !valor)) {
       setErrorHotel('Completa todos los campos del hotel.')
@@ -1063,6 +1136,7 @@ function App() {
   }
 
   function confirmarEliminarHotel() {
+    if (!puedeEliminarEnModulo()) return
     if (!hotelPorEliminar) return
     const dependencias = obtenerDependenciasHotel(hotelPorEliminar)
     if (dependencias.habitaciones.length || dependencias.empleados.length || dependencias.servicios.length) return
@@ -1076,7 +1150,7 @@ function App() {
   }
 
   function abrirConfirmacionCancelacion(reserva) {
-    if (reserva.estado !== 'CONFIRMADA') return
+    if (!puedeCancelarReservas() || !reservaEnHotelSesion(reserva) || reserva.estado !== 'CONFIRMADA') return
     setReservaPorCancelar(reserva)
   }
 
@@ -1085,7 +1159,7 @@ function App() {
   }
 
   function confirmarCancelacionReserva() {
-    if (!reservaPorCancelar || reservaPorCancelar.estado !== 'CONFIRMADA') return
+    if (!puedeCancelarReservas() || !reservaPorCancelar || !reservaEnHotelSesion(reservaPorCancelar) || reservaPorCancelar.estado !== 'CONFIRMADA') return
     if (reservaTieneEstadiaAsociada(reservaPorCancelar)) return
 
     setReservas(reservasAnteriores => reservasAnteriores.map(reserva =>
@@ -1098,7 +1172,7 @@ function App() {
 
   function abrirEdicionReserva(reserva) {
     // Las reservas canceladas se conservan como historial y no pueden modificarse.
-    if (reserva.estado === 'CANCELADA') return
+    if (!puedeEditarEnModulo('Reservas') || !reservaEnHotelSesion(reserva) || reserva.estado === 'CANCELADA') return
     setReservaEnEdicion(reserva)
     setFormularioEdicion({
       cliente: String(reserva.cliente_id_cliente),
@@ -1116,7 +1190,7 @@ function App() {
     evento.preventDefault()
     setErrorEdicion('')
 
-    if (!reservaEnEdicion) return
+    if (!puedeEditarEnModulo('Reservas') || !reservaEnEdicion || !reservaEnHotelSesion(reservaEnEdicion)) return
     if (reservaEnEdicion.estado === 'CANCELADA') {
       setErrorEdicion('Una reserva cancelada no se puede modificar.')
       return
@@ -1147,8 +1221,8 @@ function App() {
       return
     }
 
-    const clienteExiste = clientes.some(cliente => cliente.id === idCliente)
-    const habitacionSeleccionada = habitaciones.find(habitacion => habitacion.id === idHabitacion)
+    const clienteExiste = clientesVisibles.some(cliente => Number(cliente.id) === idCliente)
+    const habitacionSeleccionada = habitacionesVisibles.find(habitacion => Number(habitacion.id) === idHabitacion)
     if (!clienteExiste || !habitacionSeleccionada) {
       setErrorEdicion('Selecciona un cliente y una habitación registrados.')
       return
@@ -1159,7 +1233,7 @@ function App() {
     }
 
     if (formularioEdicion.estado === 'CONFIRMADA') {
-      const existeCruce = reservas.some(reserva => {
+      const existeCruce = reservasVisibles.some(reserva => {
         if (reserva.id_reserva === reservaEnEdicion.id_reserva) return false
         if (reserva.habitacion_id_habitacion !== idHabitacion || ['CANCELADA', 'COMPLETADA'].includes(reserva.estado)) return false
         return formularioEdicion.entrada < reserva.fecha_salida && formularioEdicion.salida > reserva.fecha_entrada
@@ -1188,6 +1262,7 @@ function App() {
   }
 
   function abrirModalReserva() {
+    if (!puedeCrearEnModulo('Reservas')) return
     setClienteReserva('')
     setHabitacionReserva('')
     setEntradaReserva('')
@@ -1201,6 +1276,8 @@ function App() {
   function registrarReserva(evento) {
     evento.preventDefault()
     setErrorReserva('')
+
+    if (!puedeCrearEnModulo('Reservas')) return
 
     if (!clienteReserva || !habitacionReserva || !entradaReserva || !salidaReserva || totalReserva === '') {
       setErrorReserva('Completa los campos obligatorios para registrar la reserva.')
@@ -1229,8 +1306,8 @@ function App() {
 
     const idCliente = Number(clienteReserva)
     const idHabitacion = Number(habitacionReserva)
-    const clienteExiste = clientes.some(cliente => cliente.id === idCliente)
-    const habitacionSeleccionada = habitaciones.find(habitacion => habitacion.id === idHabitacion)
+    const clienteExiste = clientesVisibles.some(cliente => Number(cliente.id) === idCliente)
+    const habitacionSeleccionada = habitacionesVisibles.find(habitacion => Number(habitacion.id) === idHabitacion)
 
     if (!clienteExiste || !habitacionSeleccionada) {
       setErrorReserva('Selecciona un cliente y una habitación registrados.')
@@ -1242,7 +1319,7 @@ function App() {
     }
 
     // Una habitación no puede tener reservas activas con fechas superpuestas.
-    const existeCruce = reservas.some(reserva => {
+    const existeCruce = reservasVisibles.some(reserva => {
       if (reserva.habitacion_id_habitacion !== idHabitacion || ['CANCELADA', 'COMPLETADA'].includes(reserva.estado)) return false
       return entradaReserva < reserva.fecha_salida && salidaReserva > reserva.fecha_entrada
     })
@@ -1281,6 +1358,7 @@ function App() {
   // ==========================================
 
   function abrirRegistroHabitacion() {
+    if (!puedeCrearEnModulo('Habitaciones')) return
     setNuevaHabitacion({ numero: '', tipo: '', piso: '', estado: 'DISPONIBLE', hotel_id_hotel: hoteles[0] ? String(hoteles[0].id_hotel) : '' })
     setErrorHabitacion('')
     setMostrarModalHabitacion(true)
@@ -1288,12 +1366,15 @@ function App() {
 
   function registrarHabitacion(evento) {
     evento.preventDefault()
+    if (!puedeCrearEnModulo('Habitaciones')) return
 
     const numero = nuevaHabitacion.numero.trim()
     const tipoId = Number(nuevaHabitacion.tipo)
     const piso = Number(nuevaHabitacion.piso)
     const hotelId = Number(nuevaHabitacion.hotel_id_hotel)
-    const hotelExiste = hoteles.some(hotel => Number(hotel.id_hotel) === hotelId)
+    const hotelExiste = employeeSession
+      ? hotelId === hotelSesionId
+      : hoteles.some(hotel => Number(hotel.id_hotel) === hotelId)
 
     if (!numero || !tipoId || !Number.isInteger(piso) || piso < 1 || !nuevaHabitacion.hotel_id_hotel || !hotelExiste) {
       setErrorHabitacion('Completa todos los campos con valores válidos.')
@@ -1329,6 +1410,7 @@ function App() {
   // ==========================================
 
   function abrirEdicionHabitacion(habitacion) {
+    if (!puedeEditarEnModulo('Habitaciones') || !habitacionEnHotelSesion(habitacion.id)) return
     setHabitacionEnEdicion(habitacion)
     setFormularioHabitacionEdicion({
       numero: habitacion.numero,
@@ -1342,6 +1424,7 @@ function App() {
 
   function guardarEdicionHabitacion(evento) {
     evento.preventDefault()
+    if (!puedeEditarEnModulo('Habitaciones') || (habitacionEnEdicion && !habitacionEnHotelSesion(habitacionEnEdicion.id))) return
 
     if (!habitacionEnEdicion) return
 
@@ -1349,7 +1432,9 @@ function App() {
     const tipoId = Number(formularioHabitacionEdicion.tipo)
     const piso = Number(formularioHabitacionEdicion.piso)
     const hotelId = Number(formularioHabitacionEdicion.hotel_id_hotel)
-    const hotelExiste = hoteles.some(hotel => Number(hotel.id_hotel) === hotelId)
+    const hotelExiste = employeeSession
+      ? hotelId === hotelSesionId
+      : hoteles.some(hotel => Number(hotel.id_hotel) === hotelId)
 
     if (!numero || !tipoId || !Number.isInteger(piso) || piso < 1 || !formularioHabitacionEdicion.hotel_id_hotel || !hotelExiste) {
       setErrorEdicionHabitacion('Completa todos los campos con valores válidos.')
@@ -1403,10 +1488,12 @@ function App() {
   // ==========================================
 
   function abrirConfirmacionEliminarHabitacion(habitacion) {
+    if (!puedeEliminarEnModulo() || !habitacionEnHotelSesion(habitacion.id)) return
     setHabitacionPorEliminar(habitacion)
   }
 
   function confirmarEliminarHabitacion() {
+    if (!puedeEliminarEnModulo()) return
     if (!habitacionPorEliminar) return
 
     // Se revisan todas las reservas, incluso las completadas o canceladas,
@@ -1437,6 +1524,7 @@ function App() {
   // ==========================================
 
   function abrirRegistroTipo() {
+    if (!puedeCrearEnModulo('Tipos de habitación')) return
     setTipoEnEdicion(null)
     setFormularioTipo({ nombre: '', descripcion: '', capacidad: '', precio_base: '' })
     setErrorTipo('')
@@ -1444,6 +1532,7 @@ function App() {
   }
 
   function abrirEdicionTipo(tipo) {
+    if (!puedeEditarEnModulo('Tipos de habitación')) return
     setTipoEnEdicion(tipo)
     setFormularioTipo({ nombre: tipo.nombre, descripcion: tipo.descripcion || '', capacidad: String(tipo.capacidad), precio_base: tipo.precio_base == null ? '' : String(tipo.precio_base) })
     setErrorTipo('')
@@ -1452,6 +1541,7 @@ function App() {
 
   function guardarTipoHabitacion(evento) {
     evento.preventDefault()
+    if (!puedeCrearEnModulo('Tipos de habitación') && !puedeEditarEnModulo('Tipos de habitación')) return
     const nombre = formularioTipo.nombre.trim()
     const descripcion = formularioTipo.descripcion.trim()
     const capacidad = Number(formularioTipo.capacidad)
@@ -1475,6 +1565,7 @@ function App() {
   }
 
   function confirmarEliminarTipo() {
+    if (!puedeEliminarEnModulo()) return
     if (!tipoPorEliminar) return
     const tieneHabitaciones = habitaciones.some(habitacion => Number(habitacion.tipo_habitacion_id_tipo) === Number(tipoPorEliminar.id_tipo))
     if (tieneHabitaciones) return
@@ -1491,7 +1582,7 @@ function App() {
   // FILTRAR HABITACIONES
   // ==========================================
 
-  const habitacionesFiltradas = habitaciones.filter((habitacion) => {
+  const habitacionesFiltradas = habitacionesVisibles.filter((habitacion) => {
     const texto = busqueda.trim().toLowerCase()
     const coincideNumero = String(habitacion.numero).toLowerCase().includes(texto)
     const coincidePiso = String(habitacion.piso ?? '').toLowerCase().includes(texto)
@@ -1503,7 +1594,7 @@ function App() {
   // FILTRAR RESERVAS
   // ==========================================
 
-  const reservasFiltradas = reservas.filter((reserva) => {
+  const reservasFiltradas = reservasVisibles.filter((reserva) => {
     const texto = busquedaReserva.toLowerCase()
     const textoGeneralReserva = [
       codigoReserva(reserva.id_reserva),
@@ -1571,12 +1662,12 @@ function App() {
   // ==========================================
 
   const obtenerReservaEstadia = (estadia) =>
-    reservas.find(reserva => Number(reserva.id_reserva) === Number(estadia.reserva_id_reserva))
+    reservasVisibles.find(reserva => Number(reserva.id_reserva) === Number(estadia.reserva_id_reserva))
 
   const obtenerEmpleadoEstadia = (estadia) =>
-    empleados.find(empleado => Number(empleado.id) === Number(estadia.empleado_id_empleado))
+    empleadosDelHotel.find(empleado => Number(empleado.id) === Number(estadia.empleado_id_empleado))
 
-  const estadiasFiltradas = estadias.filter(estadia => {
+  const estadiasFiltradas = estadiasVisibles.filter(estadia => {
     const texto = busquedaEstadia.trim().toLowerCase()
     const reserva = obtenerReservaEstadia(estadia)
     const cliente = reserva ? nombreClienteReserva(reserva) : ''
@@ -1589,6 +1680,7 @@ function App() {
   })
 
   function abrirRegistroEstadia() {
+    if (!puedeCrearEnModulo('Estadias')) return
     setEstadiaEnEdicion(null)
     setFormularioEstadia({ reserva_id_reserva: '', empleado_id_empleado: '', fecha_check_in: '', fecha_check_out: '' })
     setErrorEstadia('')
@@ -1596,6 +1688,7 @@ function App() {
   }
 
   function abrirEdicionEstadia(estadia) {
+    if (!puedeEditarEnModulo('Estadias') || !estadiaIdsVisibles.has(Number(estadia.id_estadia))) return
     setEstadiaEnEdicion(estadia)
     setFormularioEstadia({
       reserva_id_reserva: String(estadia.reserva_id_reserva),
@@ -1610,10 +1703,11 @@ function App() {
   function guardarEstadia(evento) {
     evento.preventDefault()
     setErrorEstadia('')
+    if (estadiaEnEdicion ? !puedeEditarEnModulo('Estadias') : !puedeCrearEnModulo('Estadias')) return
     const reservaId = Number(formularioEstadia.reserva_id_reserva)
     const empleadoId = Number(formularioEstadia.empleado_id_empleado)
-    const reserva = reservas.find(item => Number(item.id_reserva) === reservaId)
-    const empleadoExiste = empleados.some(item => Number(item.id) === empleadoId)
+    const reserva = reservasVisibles.find(item => Number(item.id_reserva) === reservaId)
+    const empleadoExiste = empleadosDelHotel.some(item => Number(item.id) === empleadoId)
     if (!reserva) { setErrorEstadia('Selecciona una reserva válida para relacionarla con la estadía.'); return }
     if (!empleadoExiste) { setErrorEstadia('Selecciona un empleado existente responsable de la estadía.'); return }
     if (reserva.estado === 'CANCELADA') { setErrorEstadia('No se puede registrar una estadía para una reserva cancelada.'); return }
@@ -1632,6 +1726,7 @@ function App() {
   }
 
   function confirmarEliminarEstadia() {
+    if (!puedeEliminarEnModulo()) return
     if (!estadiaPorEliminar) return
     const consumosVinculados = consumosServicios.some(consumo => Number(consumo.estadia_id_estadia) === Number(estadiaPorEliminar.id_estadia))
     const pagosVinculados = pagos.some(pago => Number(pago.estadia_id_estadia) === Number(estadiaPorEliminar.id_estadia))
@@ -1652,7 +1747,7 @@ function App() {
   // FILTRAR CLIENTES
   // ==========================================
 
-  const clientesFiltrados = clientes.filter((cliente) => {
+  const clientesFiltrados = clientesVisibles.filter((cliente) => {
     const texto = busquedaCliente.toLowerCase()
 
     const nombreCompleto =
@@ -1670,6 +1765,7 @@ function App() {
   // ==========================================
 
   function abrirRegistroCliente() {
+    if (!puedeCrearEnModulo('Clientes')) return
     setClienteEnEdicion(null)
     setFormularioCliente({ nombre: '', apellido: '', documento: '', email: '', telefono: '', nacionalidad: '' })
     setErrorCliente('')
@@ -1677,6 +1773,7 @@ function App() {
   }
 
   function abrirEdicionCliente(cliente) {
+    if (!puedeEditarEnModulo('Clientes') || !clientesVisibles.some(item => Number(item.id) === Number(cliente.id))) return
     setClienteEnEdicion(cliente)
     setFormularioCliente({ nombre: cliente.nombre, apellido: cliente.apellido, documento: cliente.documento, email: cliente.email, telefono: cliente.telefono, nacionalidad: cliente.nacionalidad })
     setErrorCliente('')
@@ -1685,6 +1782,7 @@ function App() {
 
   function guardarCliente(evento) {
     evento.preventDefault()
+    if (clienteEnEdicion ? !puedeEditarEnModulo('Clientes') : !puedeCrearEnModulo('Clientes')) return
     const datos = Object.fromEntries(Object.entries(formularioCliente).map(([clave, valor]) => [clave, valor.trim()]))
     if (Object.values(datos).some(valor => !valor)) {
       setErrorCliente('Completa todos los campos para registrar al cliente.')
@@ -1704,6 +1802,7 @@ function App() {
     } else {
       const nuevoId = clientes.length ? Math.max(...clientes.map(cliente => Number(cliente.id))) + 1 : 1
       setClientes(actuales => [...actuales, { id: nuevoId, ...datos }])
+      if (employeeSession) setClientesRegistradosEnSesion(actuales => [...new Set([...actuales, nuevoId])])
     }
     setMostrarModalCliente(false)
     setClienteEnEdicion(null)
@@ -1711,6 +1810,7 @@ function App() {
   }
 
   function confirmarEliminarCliente() {
+    if (!puedeEliminarEnModulo()) return
     if (!clientePorEliminar) return
     const reservasAsociadas = reservas.filter(reserva => Number(reserva.cliente_id_cliente) === Number(clientePorEliminar.id))
     if (reservasAsociadas.length) return
@@ -1723,6 +1823,7 @@ function App() {
   // ==========================================
 
   function abrirRegistroEmpleado() {
+    if (employeeSession) return
     setEmpleadoEnEdicion(null)
     setFormularioEmpleado({ nombre: '', apellido: '', documento: '', fechaIngreso: '', cargo_id_cargo: cargos[0] ? String(cargos[0].id_cargo) : '', hotel_id_hotel: hoteles[0] ? String(hoteles[0].id_hotel) : '' })
     setErrorEmpleado('')
@@ -1745,6 +1846,7 @@ function App() {
   }
 
   function abrirEdicionEmpleado(empleado) {
+    if (employeeSession) return
     setEmpleadoEnEdicion(empleado)
     setFormularioEmpleado({
       nombre: empleado.nombre, apellido: empleado.apellido, documento: empleado.documento,
@@ -1757,6 +1859,7 @@ function App() {
 
   function guardarEmpleado(evento) {
     evento.preventDefault()
+    if (employeeSession) return
     const datos = {
       nombre: formularioEmpleado.nombre.trim(), apellido: formularioEmpleado.apellido.trim(),
       documento: formularioEmpleado.documento.trim(), fechaIngreso: formularioEmpleado.fechaIngreso || normalizarFechaIngreso(empleadoEnEdicion?.fechaIngreso ?? empleadoEnEdicion?.fecha_ingreso),
@@ -1797,6 +1900,7 @@ function App() {
   // ==========================================
 
   function abrirRegistroCargo() {
+    if (employeeSession) return
     setCargoEnEdicion(null)
     setFormularioCargo({ nombre: '', salario_base: '' })
     setErrorCargo('')
@@ -1804,6 +1908,7 @@ function App() {
   }
 
   function abrirEdicionCargo(cargo) {
+    if (employeeSession) return
     setCargoEnEdicion(cargo)
     setFormularioCargo({ nombre: cargo.nombre, salario_base: cargo.salario_base == null ? '' : String(cargo.salario_base) })
     setErrorCargo('')
@@ -1812,6 +1917,7 @@ function App() {
 
   function guardarCargo(evento) {
     evento.preventDefault()
+    if (employeeSession) return
     const nombre = formularioCargo.nombre.trim()
     const salario = formularioCargo.salario_base.trim() === '' ? null : Number(formularioCargo.salario_base)
 
@@ -1836,6 +1942,7 @@ function App() {
   }
 
   function confirmarEliminarCargo() {
+    if (!puedeEliminarEnModulo()) return
     if (!cargoPorEliminar) return
     const estaAsignado = empleados.some(empleado => Number(empleado.cargo_id_cargo) === Number(cargoPorEliminar.id_cargo))
     if (estaAsignado) return
@@ -1849,6 +1956,7 @@ function App() {
   )
 
   function confirmarEliminarEmpleado() {
+    if (!puedeEliminarEnModulo()) return
     if (!empleadoPorEliminar) return
     const estadiasAsociadas = estadias.some(
       estadia => Number(estadia.empleado_id_empleado) === Number(empleadoPorEliminar.id)
@@ -1874,6 +1982,7 @@ function App() {
   // ==========================================
 
   function abrirRegistroServicio() {
+    if (!puedeCrearEnModulo('Servicios')) return
     setServicioEnEdicion(null)
     setFormularioServicio({ nombre: '', precio: '', hotel_id_hotel: hoteles[0] ? String(hoteles[0].id_hotel) : '' })
     setErrorServicio('')
@@ -1881,6 +1990,7 @@ function App() {
   }
 
   function abrirEdicionServicio(servicio) {
+    if (!puedeEditarEnModulo('Servicios') || !serviciosVisibles.some(item => Number(item.id) === Number(servicio.id))) return
     setServicioEnEdicion(servicio)
     setFormularioServicio({ nombre: servicio.nombre, precio: String(servicio.precio), hotel_id_hotel: String(servicio.hotel_id_hotel ?? '') })
     setErrorServicio('')
@@ -1889,13 +1999,14 @@ function App() {
 
   function guardarServicio(evento) {
     evento.preventDefault()
+    if (servicioEnEdicion ? !puedeEditarEnModulo('Servicios') : !puedeCrearEnModulo('Servicios')) return
     const nombre = formularioServicio.nombre.trim()
     const precioTexto = formularioServicio.precio.trim()
     const precio = Number(precioTexto)
     const hotelId = Number(formularioServicio.hotel_id_hotel)
     if (!nombre) { setErrorServicio('Ingresa el nombre del servicio.'); return }
     if (nombre.length > 100) { setErrorServicio('El nombre no puede superar los 100 caracteres.'); return }
-    if (!formularioServicio.hotel_id_hotel || !hoteles.some(hotel => Number(hotel.id_hotel) === hotelId)) {
+    if (!formularioServicio.hotel_id_hotel || (employeeSession ? hotelId !== hotelSesionId : !hoteles.some(hotel => Number(hotel.id_hotel) === hotelId))) {
       setErrorServicio('Selecciona un hotel existente.')
       return
     }
@@ -1917,10 +2028,11 @@ function App() {
   }
 
   function obtenerConsumosServicio(servicio) {
-    return consumosServicios.filter(consumo => Number(consumo.servicio_id_servicio) === Number(servicio.id))
+    return consumosVisibles.filter(consumo => Number(consumo.servicio_id_servicio) === Number(servicio.id))
   }
 
   function confirmarEliminarServicio() {
+    if (!puedeEliminarEnModulo()) return
     if (!servicioPorEliminar) return
     const consumosRelacionados = obtenerConsumosServicio(servicioPorEliminar)
     if (consumosRelacionados.length > 0) return
@@ -1932,7 +2044,7 @@ function App() {
   // FILTRAR SERVICIOS
   // ==========================================
 
-  const serviciosFiltrados = servicios.filter((servicio) => {
+  const serviciosFiltrados = serviciosVisibles.filter((servicio) => {
     const texto = busquedaServicio.toLowerCase()
     return servicio.nombre.toLowerCase().includes(texto)
       && coincideFiltrosAvanzadosLista(servicio, 'servicios', atributosFiltroServicios)
@@ -1943,6 +2055,7 @@ function App() {
   // ==========================================
 
   function abrirRegistroConsumo() {
+    if (!puedeCrearEnModulo('Consumos')) return
     setConsumoEnEdicion(null)
     setFormularioConsumo({ estadia_id_estadia: '', servicio_id_servicio: '', cantidad: '1', subtotal: '' })
     setErrorConsumo('')
@@ -1950,6 +2063,7 @@ function App() {
   }
 
   function abrirEdicionConsumo(consumo) {
+    if (!puedeEditarEnModulo('Consumos') || !consumosVisibles.some(item => Number(item.id_consumo) === Number(consumo.id_consumo))) return
     setConsumoEnEdicion(consumo)
     setFormularioConsumo({
       estadia_id_estadia: String(consumo.estadia_id_estadia),
@@ -1963,6 +2077,7 @@ function App() {
 
   function guardarConsumo(evento) {
     evento.preventDefault()
+    if (consumoEnEdicion ? !puedeEditarEnModulo('Consumos') : !puedeCrearEnModulo('Consumos')) return
     const estadiaId = Number(formularioConsumo.estadia_id_estadia)
     const servicioId = Number(formularioConsumo.servicio_id_servicio)
     const cantidadTexto = formularioConsumo.cantidad.trim()
@@ -1970,11 +2085,11 @@ function App() {
     const cantidad = Number(cantidadTexto)
     const subtotal = Number(subtotalTexto)
 
-    if (!estadias.some(estadia => Number(estadia.id_estadia) === estadiaId)) {
+    if (!estadiasVisibles.some(estadia => Number(estadia.id_estadia) === estadiaId)) {
       setErrorConsumo('Selecciona una estadía válida. No hay registros de ESTADIA disponibles en el sistema.')
       return
     }
-    if (!servicios.some(servicio => Number(servicio.id) === servicioId)) {
+    if (!serviciosVisibles.some(servicio => Number(servicio.id) === servicioId)) {
       setErrorConsumo('Selecciona un servicio válido.')
       return
     }
@@ -2001,13 +2116,14 @@ function App() {
   }
 
   function confirmarEliminarConsumo() {
+    if (!puedeEliminarEnModulo()) return
     if (!consumoPorEliminar) return
     setConsumosServicios(actuales => actuales.filter(consumo => consumo.id_consumo !== consumoPorEliminar.id_consumo))
     setConsumoPorEliminar(null)
   }
 
-  const consumosFiltrados = consumosServicios.filter(consumo => {
-    const servicio = servicios.find(item => Number(item.id) === Number(consumo.servicio_id_servicio))
+  const consumosFiltrados = consumosVisibles.filter(consumo => {
+    const servicio = serviciosVisibles.find(item => Number(item.id) === Number(consumo.servicio_id_servicio))
     const texto = busquedaConsumo.toLowerCase().trim()
     const coincideTexto = String(consumo.id_consumo).includes(texto)
       || String(consumo.estadia_id_estadia).includes(texto)
@@ -2023,7 +2139,7 @@ function App() {
   // ==========================================
 
   const obtenerEstadiaPago = (pago) =>
-    estadias.find(estadia => Number(estadia.id_estadia) === Number(pago.estadia_id_estadia))
+    estadiasVisibles.find(estadia => Number(estadia.id_estadia) === Number(pago.estadia_id_estadia))
 
   const obtenerReservaPago = (pago) => {
     const estadia = obtenerEstadiaPago(pago)
@@ -2031,6 +2147,7 @@ function App() {
   }
 
   function abrirRegistroPago() {
+    if (!puedeCrearEnModulo('Pagos')) return
     setPagoEnEdicion(null)
     setFormularioPago({ estadia_id_estadia: '', fecha_pago: new Date().toISOString().slice(0, 10), monto: '', metodo_pago: '' })
     setErrorPago('')
@@ -2038,6 +2155,7 @@ function App() {
   }
 
   function abrirEdicionPago(pago) {
+    if (!puedeEditarEnModulo('Pagos') || !pagosVisibles.some(item => Number(item.id_pago) === Number(pago.id_pago))) return
     setPagoEnEdicion(pago)
     setFormularioPago({ estadia_id_estadia: String(pago.estadia_id_estadia), fecha_pago: pago.fecha_pago, monto: String(pago.monto), metodo_pago: pago.metodo_pago })
     setErrorPago('')
@@ -2046,10 +2164,11 @@ function App() {
 
   function guardarPago(evento) {
     evento.preventDefault()
+    if (pagoEnEdicion ? !puedeEditarEnModulo('Pagos') : !puedeCrearEnModulo('Pagos')) return
     const estadiaId = Number(formularioPago.estadia_id_estadia)
     const montoTexto = formularioPago.monto.trim()
     const monto = Number(montoTexto)
-    if (!estadias.some(item => Number(item.id_estadia) === estadiaId)) { setErrorPago('Selecciona una estadía existente para mantener la clave foránea.'); return }
+    if (!estadiasVisibles.some(item => Number(item.id_estadia) === estadiaId)) { setErrorPago('Selecciona una estadía existente para mantener la clave foránea.'); return }
     if (!formularioPago.fecha_pago) { setErrorPago('Selecciona la fecha del pago.'); return }
     if (!montoTexto || !Number.isFinite(monto) || monto <= 0 || !/^\d+(\.\d{1,2})?$/.test(montoTexto)) { setErrorPago('El monto debe ser mayor que cero y tener como máximo dos decimales.'); return }
     if (!formularioPago.metodo_pago.trim() || formularioPago.metodo_pago.trim().length > 50) { setErrorPago('Ingresa un método de pago de hasta 50 caracteres.'); return }
@@ -2060,12 +2179,13 @@ function App() {
   }
 
   function confirmarEliminarPago() {
+    if (!puedeEliminarEnModulo()) return
     if (!pagoPorEliminar) return
     setPagos(actuales => actuales.filter(item => item.id_pago !== pagoPorEliminar.id_pago))
     setPagoPorEliminar(null)
   }
 
-  const pagosFiltrados = pagos.filter(pago => {
+  const pagosFiltrados = pagosVisibles.filter(pago => {
     const texto = busquedaPago.trim().toLowerCase()
     const reserva = obtenerReservaPago(pago)
     const cliente = reserva ? nombreClienteReserva(reserva) : ''
@@ -2084,6 +2204,7 @@ function App() {
     empleados.find(empleado => Number(empleado.id) === Number(mantenimiento.empleado_id_empleado))
 
   function abrirRegistroMantenimiento() {
+    if (employeeSession) return
     if (!habitaciones.length || !empleados.length) return
     setMantenimientoEnEdicion(null)
     setFormularioMantenimiento({ fecha_inicio: new Date().toISOString().slice(0, 10), tipo: '', costo: '', habitacion_id_habitacion: '', empleado_id_empleado: '' })
@@ -2092,6 +2213,7 @@ function App() {
   }
 
   function abrirEdicionMantenimiento(mantenimiento) {
+    if (employeeSession) return
     setMantenimientoEnEdicion(mantenimiento)
     setFormularioMantenimiento({
       fecha_inicio: mantenimiento.fecha_inicio,
@@ -2106,6 +2228,7 @@ function App() {
 
   function guardarMantenimiento(evento) {
     evento.preventDefault()
+    if (employeeSession) return
     const tipo = formularioMantenimiento.tipo.trim()
     const costoTexto = formularioMantenimiento.costo.trim()
     const costo = Number(costoTexto)
@@ -2149,6 +2272,7 @@ function App() {
   }
 
   function confirmarEliminarMantenimiento() {
+    if (!puedeEliminarEnModulo()) return
     if (!mantenimientoPorEliminar) return
     setMantenimientos(actuales => actuales.filter(item => item.id_mantenimiento !== mantenimientoPorEliminar.id_mantenimiento))
     setMantenimientoSeleccionado(actual => actual?.id_mantenimiento === mantenimientoPorEliminar.id_mantenimiento ? null : actual)
@@ -2222,6 +2346,10 @@ function App() {
 
   function mostrarContenido() {
 
+    if (employeeSession && !puedeVerModulo(seccionActiva)) {
+      return <section className="welcome"><h1>Acceso restringido</h1><p>Este módulo no está habilitado para tu cargo.</p></section>
+    }
+
     // ========================================
     // MODULO HABITACIONES
     // ========================================
@@ -2233,12 +2361,12 @@ function App() {
             <div className="welcome">
               <span className="reservations-eyebrow">GESTIÓN HOTELERA</span>
               <h1>Gestión de habitaciones</h1>
-              <p>Consulta y administra las habitaciones de Hotel Los Andes.</p>
+              <p>{employeeSession ? `Consulta las habitaciones de ${employeeSession.hotel.nombre}.` : 'Consulta y administra las habitaciones de Hotel Los Andes.'}</p>
             </div>
             <div className="rooms-heading-actions">
               <div className="reservations-heading-note">
                 <span className="reservations-note-icon">▦</span>
-                <div><strong>{habitaciones.length} registros</strong><span>Habitaciones en el sistema</span></div>
+                <div><strong>{habitacionesVisibles.length} registros</strong><span>Habitaciones en el sistema</span></div>
               </div>
             </div>
           </div>
@@ -2252,19 +2380,19 @@ function App() {
           <div className="room-summary rooms-modern-summary">
             <article className="room-summary-card reservation-stat reservation-stat-total">
               <div className="reservation-stat-top"><span>Total de habitaciones</span><span className="reservation-stat-icon">▤</span></div>
-              <h2>{habitaciones.length}</h2><small>Habitaciones registradas</small>
+              <h2>{habitacionesVisibles.length}</h2><small>Habitaciones registradas</small>
             </article>
             <article className="room-summary-card reservation-stat rooms-stat-available">
               <div className="reservation-stat-top"><span>Disponibles</span><span className="reservation-stat-icon">✓</span></div>
-              <h2>{habitaciones.filter(h => h.estado === 'DISPONIBLE').length}</h2><small>Listas para reservar</small>
+              <h2>{habitacionesVisibles.filter(h => h.estado === 'DISPONIBLE').length}</h2><small>Listas para reservar</small>
             </article>
             <article className="room-summary-card reservation-stat rooms-stat-occupied">
               <div className="reservation-stat-top"><span>Ocupadas</span><span className="reservation-stat-icon">▣</span></div>
-              <h2>{habitaciones.filter(h => h.estado === 'OCUPADA').length}</h2><small>Con huéspedes alojados</small>
+              <h2>{habitacionesVisibles.filter(h => h.estado === 'OCUPADA').length}</h2><small>Con huéspedes alojados</small>
             </article>
             <article className="room-summary-card reservation-stat rooms-stat-maintenance">
               <div className="reservation-stat-top"><span>En mantenimiento</span><span className="reservation-stat-icon">⚒</span></div>
-              <h2>{habitaciones.filter(h => h.estado === 'MANTENIMIENTO').length}</h2><small>No disponibles temporalmente</small>
+              <h2>{habitacionesVisibles.filter(h => h.estado === 'MANTENIMIENTO').length}</h2><small>No disponibles temporalmente</small>
             </article>
           </div>
 
@@ -2273,7 +2401,7 @@ function App() {
               <div><h2>Listado de habitaciones</h2><p>Consulta el número, tipo, piso y estado de cada habitación.</p></div>
               <div className="reservations-header-actions">
                 <span className="reservations-total-pill">{habitacionesFiltradas.length} resultados</span>
-                <button type="button" className="reservation-new-button" onClick={abrirRegistroHabitacion}>＋ Nueva habitación</button>
+                {puedeCrearEnModulo('Habitaciones') && <button type="button" className="reservation-new-button" onClick={abrirRegistroHabitacion}>＋ Nueva habitación</button>}
               </div>
             </div>
 
@@ -2289,7 +2417,7 @@ function App() {
                       <td><span className="room-type-label">{nombreTipoHabitacion(habitacion)}</span></td>
                       <td>{habitacion.piso}</td>
                       <td><span className={`room-status room-status-modern ${habitacion.estado.toLowerCase()}`}><span className="room-status-dot" />{habitacion.estado}</span></td>
-                      <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setHabitacionSeleccionada(habitacion)} aria-label={`Ver detalle de la habitación ${habitacion.numero}`}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionHabitacion(habitacion)} aria-label={`Editar la habitación ${habitacion.numero}`}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => abrirConfirmacionEliminarHabitacion(habitacion)} aria-label={`Eliminar la habitación ${habitacion.numero}`}>Eliminar</button></div></td>
+                      <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setHabitacionSeleccionada(habitacion)} aria-label={`Ver detalle de la habitación ${habitacion.numero}`}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Habitaciones')} onClick={() => abrirEdicionHabitacion(habitacion)} aria-label={`Editar la habitación ${habitacion.numero}`}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => abrirConfirmacionEliminarHabitacion(habitacion)} aria-label={`Eliminar la habitación ${habitacion.numero}`}>Eliminar</button></div></td>
                     </tr>
                   ))}
                   {habitacionesFiltradas.length === 0 && (
@@ -2298,7 +2426,7 @@ function App() {
                 </tbody>
               </table>
             </div>
-            <div className="reservations-list-footer"><span>Mostrando {habitacionesFiltradas.length} de {habitaciones.length} habitaciones</span><span>Datos temporales estructurados según el modelo relacional</span></div>
+            <div className="reservations-list-footer"><span>Mostrando {habitacionesFiltradas.length} de {habitacionesVisibles.length} habitaciones</span><span>Datos temporales estructurados según el modelo relacional</span></div>
               <ListPagination totalItems={habitacionesFiltradas.length} {...habitacionesPagina} onPageChange={pagina => cambiarPaginaLista('habitaciones', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('habitaciones', tamano)} />
           </div>
           </>}
@@ -2307,18 +2435,18 @@ function App() {
             <div className="room-summary rooms-modern-summary types-room-summary">
                 <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Tipos registrados</span><span className="reservation-stat-icon">▤</span></div><h2>{tiposHabitacion.length}</h2><small>Registros en TIPO_HABITACION</small></article>
                 <article className="room-summary-card reservation-stat rooms-stat-available"><div className="reservation-stat-top"><span>Tipos en uso</span><span className="reservation-stat-icon">⌂</span></div><h2>{tiposHabitacion.filter(tipo => habitaciones.some(habitacion => Number(habitacion.tipo_habitacion_id_tipo) === Number(tipo.id_tipo))).length}</h2><small>Con habitaciones relacionadas</small></article>
-                <article className="room-summary-card reservation-stat rooms-stat-occupied"><div className="reservation-stat-top"><span>Habitaciones relacionadas</span><span className="reservation-stat-icon">▦</span></div><h2>{habitaciones.filter(habitacion => tiposHabitacion.some(tipo => Number(tipo.id_tipo) === Number(habitacion.tipo_habitacion_id_tipo))).length}</h2><small>Habitaciones con tipo existente</small></article>
+                <article className="room-summary-card reservation-stat rooms-stat-occupied"><div className="reservation-stat-top"><span>Habitaciones relacionadas</span><span className="reservation-stat-icon">▦</span></div><h2>{habitacionesVisibles.filter(habitacion => tiposHabitacion.some(tipo => Number(tipo.id_tipo) === Number(habitacion.tipo_habitacion_id_tipo))).length}</h2><small>Habitaciones con tipo existente</small></article>
                 <article className="room-summary-card reservation-stat rooms-stat-maintenance"><div className="reservation-stat-top"><span>Capacidad máxima</span><span className="reservation-stat-icon">♙</span></div><h2>{tiposHabitacion.length ? Math.max(...tiposHabitacion.map(tipo => Number(tipo.capacidad) || 0)) : 0}</h2><small>Personas según tipo registrado</small></article>
               </div>
             <div className="room-list reservations-list rooms-modern-list type-room-list">
               <div className="room-list-header reservations-list-header">
                 <div><h2>Tipos de habitación</h2><p>Administra las categorías, capacidad y precio base de las habitaciones.</p></div>
-                <div className="reservations-header-actions"><span className="reservations-total-pill">{tiposHabitacionFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroTipo}>＋ Nuevo tipo</button></div>
+                <div className="reservations-header-actions"><span className="reservations-total-pill">{tiposHabitacionFiltrados.length} resultados</span>{puedeCrearEnModulo('Tipos de habitación') && <button type="button" className="reservation-new-button" onClick={abrirRegistroTipo}>＋ Nuevo tipo</button>}</div>
               </div>
               <DynamicListFilterPanel title="Tipos de habitación" listKey="tipos" searchValue={busquedaTipo} searchPlaceholder="Buscar por nombre o descripción..." attributes={atributosFiltroTiposHabitacion} activeFilters={obtenerFiltrosActivosLista('tipos')} onSearchChange={valor => actualizarFiltroLista('tipos', setBusquedaTipo, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaTipo(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
                 <table className="rooms-table types-room-table"><thead><tr><SortableHeader field='id' list='tipos' label='ID' sort={ordenesLista['tipos']} onSort={campo => alternarOrdenLista('tipos', campo)} /><SortableHeader field='nombre' list='tipos' label='NOMBRE DEL TIPO' sort={ordenesLista['tipos']} onSort={campo => alternarOrdenLista('tipos', campo)} /><SortableHeader field='descripcion' list='tipos' label='DESCRIPCIÓN' sort={ordenesLista['tipos']} onSort={campo => alternarOrdenLista('tipos', campo)} /><SortableHeader field='capacidad' list='tipos' label='CAPACIDAD' sort={ordenesLista['tipos']} onSort={campo => alternarOrdenLista('tipos', campo)} /><SortableHeader field='precio' list='tipos' label='PRECIO BASE' sort={ordenesLista['tipos']} onSort={campo => alternarOrdenLista('tipos', campo)} /><th className="reservation-action-heading">ACCIONES</th></tr></thead>
-                  <tbody>{tiposHabitacionPagina.rows.map(tipo => <tr key={tipo.id_tipo}><td>{tipo.id_tipo}</td><td><span className="room-type-label">{tipo.nombre}</span></td><td>{tipo.descripcion || '—'}</td><td>{tipo.capacidad} persona(s)</td><td>{tipo.precio_base == null ? 'No registrado' : `S/ ${Number(tipo.precio_base).toFixed(2)}`}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setTipoSeleccionado(tipo)}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionTipo(tipo)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => setTipoPorEliminar(tipo)}>Eliminar</button></div></td></tr>
+                  <tbody>{tiposHabitacionPagina.rows.map(tipo => <tr key={tipo.id_tipo}><td>{tipo.id_tipo}</td><td><span className="room-type-label">{tipo.nombre}</span></td><td>{tipo.descripcion || '—'}</td><td>{tipo.capacidad} persona(s)</td><td>{tipo.precio_base == null ? 'No registrado' : `S/ ${Number(tipo.precio_base).toFixed(2)}`}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setTipoSeleccionado(tipo)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Tipos de habitación')} onClick={() => abrirEdicionTipo(tipo)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => setTipoPorEliminar(tipo)}>Eliminar</button></div></td></tr>
                   )}{tiposHabitacionFiltrados.length === 0 && <tr><td colSpan="6" className="empty-message">No se encontraron tipos de habitación.</td></tr>}</tbody>
                 </table>
               </div>
@@ -2327,7 +2455,7 @@ function App() {
             </div>
           </>}
 
-          {mostrarModalTipo && (
+          {mostrarModalTipo && (tipoEnEdicion ? puedeEditarEnModulo('Tipos de habitación') : puedeCrearEnModulo('Tipos de habitación')) && (
             <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalTipo(false) }}>
               <section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="type-room-modal-title">
                 <div className="reservation-modal-header"><div><span className="reservations-eyebrow">{tipoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="type-room-modal-title">{tipoEnEdicion ? `Editar tipo: ${tipoEnEdicion.nombre}` : 'Registrar tipo de habitación'}</h2><p>Completa los datos de acuerdo con la tabla TIPO_HABITACION.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalTipo(false)} aria-label="Cerrar ventana">×</button></div>
@@ -2342,12 +2470,12 @@ function App() {
           )}
 
           {tipoPorEliminar && (() => {
-            const relacionadas = habitaciones.filter(h => Number(h.tipo_habitacion_id_tipo) === Number(tipoPorEliminar.id_tipo))
+            const relacionadas = habitacionesVisibles.filter(h => Number(h.tipo_habitacion_id_tipo) === Number(tipoPorEliminar.id_tipo))
             return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setTipoPorEliminar(null) }}><section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="type-room-delete-title"><div className="reservation-confirm-icon">!</div><h2 id="type-room-delete-title">{relacionadas.length ? 'No se puede eliminar este tipo' : '¿Eliminar este tipo de habitación?'}</h2>{relacionadas.length ? <><p>El tipo <strong>{tipoPorEliminar.nombre}</strong> está siendo utilizado por habitaciones registradas.</p><div className="reservation-confirm-notice"><strong>{relacionadas.length}</strong> habitación(es) dependen de este tipo. Cambia primero el tipo asignado a esas habitaciones para conservar la integridad referencial.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setTipoPorEliminar(null)}>Cerrar</button></div></> : <><p>Estás por eliminar el tipo <strong>{tipoPorEliminar.nombre}</strong>. Esta acción no se podrá deshacer.</p><div className="reservation-confirm-notice">Solo se permite eliminar tipos que no estén asociados a habitaciones.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setTipoPorEliminar(null)}>Conservar tipo</button><button type="button" className="reservation-confirm-danger-button" onClick={confirmarEliminarTipo}>Sí, eliminar</button></div></>}</section></div>
           })()}
 
           {tipoSeleccionado && (() => {
-            const habitacionesRelacionadas = habitaciones.filter(habitacion => Number(habitacion.tipo_habitacion_id_tipo) === Number(tipoSeleccionado.id_tipo))
+            const habitacionesRelacionadas = habitacionesVisibles.filter(habitacion => Number(habitacion.tipo_habitacion_id_tipo) === Number(tipoSeleccionado.id_tipo))
             return <div className="reservation-modal-backdrop" onMouseDown={evento => { if (evento.target === evento.currentTarget) setTipoSeleccionado(null) }}>
               <section className="reservation-detail-modal room-detail-modal types-room-detail-modal" role="dialog" aria-modal="true" aria-labelledby="type-room-detail-title">
                 <div className="reservation-modal-header"><div><span className="reservations-eyebrow">INFORMACIÓN DEL REGISTRO</span><h2 id="type-room-detail-title">Detalle: {tipoSeleccionado.nombre}</h2><p>Datos de TIPO_HABITACION y habitaciones relacionadas.</p></div><button type="button" className="reservation-modal-close" onClick={() => setTipoSeleccionado(null)} aria-label="Cerrar ventana">×</button></div>
@@ -2368,8 +2496,8 @@ function App() {
           {habitacionSeleccionada && (() => {
             const tipoDetalle = tiposHabitacion.find(tipo => tipo.id_tipo === habitacionSeleccionada.tipo_habitacion_id_tipo)
             const hotelDetalle = hoteles.find(hotel => hotel.id_hotel === habitacionSeleccionada.hotel_id_hotel)
-            const reservasHabitacion = reservas.filter(reserva => Number(reserva.habitacion_id_habitacion) === Number(habitacionSeleccionada.id))
-            const mantenimientosHabitacion = mantenimientos.filter(mantenimiento => Number(mantenimiento.habitacion_id_habitacion) === Number(habitacionSeleccionada.id_habitacion ?? habitacionSeleccionada.id))
+            const reservasHabitacion = reservasVisibles.filter(reserva => Number(reserva.habitacion_id_habitacion) === Number(habitacionSeleccionada.id))
+            const mantenimientosHabitacion = employeeSession ? [] : mantenimientos.filter(mantenimiento => Number(mantenimiento.habitacion_id_habitacion) === Number(habitacionSeleccionada.id_habitacion ?? habitacionSeleccionada.id))
             const mostrarDato = valor => valor || 'No registrado'
             return (
               <div className="reservation-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setHabitacionSeleccionada(null) }}>
@@ -2426,12 +2554,12 @@ function App() {
                     { key: 'total_estimado', label: 'TOTAL_ESTIMADO', render: row => formatearMontoReserva(row.total_estimado) },
                     { key: 'monto_adelanto', label: 'MONTO_ADELANTO', render: row => formatearMontoReserva(row.monto_adelanto) },
                   ]} />
-                  <DetailRelatedRecords title="Mantenimientos asociados" rows={mantenimientosHabitacion} emptyMessage="Esta habitación todavía no tiene mantenimientos asociados." columns={[
+                  {!employeeSession && <DetailRelatedRecords title="Mantenimientos asociados" rows={mantenimientosHabitacion} emptyMessage="Esta habitación todavía no tiene mantenimientos asociados." columns={[
                     { key: 'id_mantenimiento', label: 'ID_MANTENIMIENTO (PK)', render: row => row.id_mantenimiento },
                     { key: 'fecha_inicio', label: 'FECHA_INICIO', render: row => formatearFechaReserva(row.fecha_inicio) },
                     { key: 'tipo', label: 'TIPO', render: row => row.tipo },
                     { key: 'costo', label: 'COSTO', render: row => formatearMontoReserva(row.costo) },
-                  ]} />
+                  ]} />}
 
                   <div className="reservation-modal-footer">
                     <button type="button" className="reservation-save-button" onClick={() => setHabitacionSeleccionada(null)}>Cerrar detalle</button>
@@ -2441,7 +2569,7 @@ function App() {
             )
           })()}
 
-          {mostrarModalHabitacion && (
+          {mostrarModalHabitacion && puedeCrearEnModulo('Habitaciones') && (
             <div className="reservation-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setMostrarModalHabitacion(false) }}>
               <section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="room-create-title">
                 <div className="reservation-modal-header">
@@ -2464,7 +2592,7 @@ function App() {
           )}
 
 
-          {habitacionEnEdicion && (
+          {habitacionEnEdicion && puedeEditarEnModulo('Habitaciones') && (
             <div className="reservation-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setHabitacionEnEdicion(null) }}>
               <section className="reservation-modal reservation-edit-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="room-edit-title">
                 <div className="reservation-modal-header">
@@ -2487,7 +2615,7 @@ function App() {
           )}
 
           {habitacionPorEliminar && (() => {
-            const reservasRelacionadas = reservas.filter(
+            const reservasRelacionadas = reservasVisibles.filter(
               reserva => Number(reserva.habitacion_id_habitacion) === Number(habitacionPorEliminar.id)
             )
             const mantenimientosRelacionados = mantenimientos.filter(
@@ -2545,34 +2673,34 @@ function App() {
           <section className="rooms-section reservations-section">
             <div className="reservations-heading">
               <div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Gestión de reservas</h1><p>Administra las reservas y las estadías de los huéspedes de Hotel Los Andes.</p></div>
-              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{estadias.length} registros</strong><span>Estadías en el sistema</span></div></div>
+              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{estadiasVisibles.length} registros</strong><span>Estadías en el sistema</span></div></div>
             </div>
             <div className="services-subnav" role="tablist" aria-label="Secciones de reservas">
               <button type="button" className="services-subnav-button" onClick={() => setSubseccionReservas('reservas')}>Reservas</button>
               <button type="button" className="services-subnav-button active" aria-current="page">Estadías</button>
             </div>
             <div className="room-summary reservations-summary">
-              <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de estadías</span><span className="reservation-stat-icon">▤</span></div><h2>{estadias.length}</h2><small>Registros almacenados</small></article>
-              <article className="room-summary-card reservation-stat reservation-stat-confirmed"><div className="reservation-stat-top"><span>Check-in registrados</span><span className="reservation-stat-icon">✓</span></div><h2>{estadias.filter(item => item.fecha_check_in).length}</h2><small>Ingresos registrados</small></article>
-              <article className="room-summary-card reservation-stat reservation-stat-completed"><div className="reservation-stat-top"><span>Check-out registrados</span><span className="reservation-stat-icon">▣</span></div><h2>{estadias.filter(item => item.fecha_check_out).length}</h2><small>Salidas registradas</small></article>
+              <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de estadías</span><span className="reservation-stat-icon">▤</span></div><h2>{estadiasVisibles.length}</h2><small>Registros almacenados</small></article>
+              <article className="room-summary-card reservation-stat reservation-stat-confirmed"><div className="reservation-stat-top"><span>Check-in registrados</span><span className="reservation-stat-icon">✓</span></div><h2>{estadiasVisibles.filter(item => item.fecha_check_in).length}</h2><small>Ingresos registrados</small></article>
+              <article className="room-summary-card reservation-stat reservation-stat-completed"><div className="reservation-stat-top"><span>Check-out registrados</span><span className="reservation-stat-icon">▣</span></div><h2>{estadiasVisibles.filter(item => item.fecha_check_out).length}</h2><small>Salidas registradas</small></article>
               <article className="room-summary-card reservation-stat reservation-stat-cancelled"><div className="reservation-stat-top"><span>Resultados encontrados</span><span className="reservation-stat-icon">⌕</span></div><h2>{estadiasFiltradas.length}</h2><small>Coincidencias de búsqueda</small></article>
             </div>
             <div className="room-list reservations-list">
-              <div className="room-list-header reservations-list-header"><div><h2>Listado de estadías</h2><p>Registros de la tabla ESTADIA relacionados con su reserva y empleado.</p></div><div className="reservations-header-actions"><span className="reservations-total-pill">{estadiasFiltradas.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroEstadia} disabled={reservas.every(item => item.estado === 'CANCELADA') || empleados.length === 0} title={empleados.length === 0 ? 'Registra un empleado antes de crear una estadía.' : undefined}>＋ Nueva estadía</button></div></div>
+              <div className="room-list-header reservations-list-header"><div><h2>Listado de estadías</h2><p>Registros de la tabla ESTADIA relacionados con su reserva y empleado.</p></div><div className="reservations-header-actions"><span className="reservations-total-pill">{estadiasFiltradas.length} resultados</span><button type="button" className="reservation-new-button" hidden={!puedeCrearEnModulo('Estadias')} onClick={abrirRegistroEstadia} disabled={reservas.every(item => item.estado === 'CANCELADA') || empleadosDelHotel.length === 0} title={empleadosDelHotel.length === 0 ? 'Registra un empleado antes de crear una estadía.' : undefined}>＋ Nueva estadía</button></div></div>
               <DynamicListFilterPanel title="Estadías" listKey="estadias" searchValue={busquedaEstadia} searchPlaceholder="Buscar por identificador, fecha, reserva o cliente..." attributes={atributosFiltroEstadias} activeFilters={obtenerFiltrosActivosLista('estadias')} onSearchChange={valor => actualizarFiltroLista('estadias', setBusquedaEstadia, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaEstadia(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container"><table className="rooms-table reservations-table"><thead><tr><SortableHeader field='id' list='estadias' label='ID_ESTADIA' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><SortableHeader field='entrada' list='estadias' label='FECHA_CHECK_IN' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><SortableHeader field='salida' list='estadias' label='FECHA_CHECK_OUT' sort={ordenesLista['estadias']} onSort={campo => alternarOrdenLista('estadias', campo)} /><th className="reservation-action-heading">ACCIONES</th></tr></thead><tbody>
-                {estadiasPagina.rows.map(estadia => <tr key={estadia.id_estadia}><td>{estadia.id_estadia}</td><td>{formatearFechaReserva(estadia.fecha_check_in)}</td><td>{formatearFechaReserva(estadia.fecha_check_out)}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setEstadiaSeleccionada(estadia)}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionEstadia(estadia)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => { setEstadiaPorEliminar(estadia); setErrorEstadia('') }}>Eliminar</button></div></td></tr>)}
+                {estadiasPagina.rows.map(estadia => <tr key={estadia.id_estadia}><td>{estadia.id_estadia}</td><td>{formatearFechaReserva(estadia.fecha_check_in)}</td><td>{formatearFechaReserva(estadia.fecha_check_out)}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setEstadiaSeleccionada(estadia)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Estadias')} onClick={() => abrirEdicionEstadia(estadia)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => { setEstadiaPorEliminar(estadia); setErrorEstadia('') }}>Eliminar</button></div></td></tr>)}
                 {estadiasFiltradas.length === 0 && <tr><td colSpan="4" className="empty-message">{busquedaEstadia ? 'No se encontraron estadías con ese criterio.' : 'Todavía no hay estadías registradas en ESTADIA.'}</td></tr>}
               </tbody></table></div>
-              <div className="reservations-list-footer"><span>Mostrando {estadiasFiltradas.length} de {estadias.length} estadías</span><span>Tabla ESTADIA del modelo relacional</span></div>
+              <div className="reservations-list-footer"><span>Mostrando {estadiasFiltradas.length} de {estadiasVisibles.length} estadías</span><span>Tabla ESTADIA del modelo relacional</span></div>
               <ListPagination totalItems={estadiasFiltradas.length} {...estadiasPagina} onPageChange={pagina => cambiarPaginaLista('estadias', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('estadias', tamano)} />
-              {!reservas.length && <p className="service-no-consumptions">Para registrar una estadía primero debe existir una reserva.</p>}
+              {!reservasVisibles.length && <p className="service-no-consumptions">Para registrar una estadía primero debe existir una reserva.</p>}
             </div>
-            {mostrarModalEstadia && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalEstadia(false) }}><section className="reservation-modal" role="dialog" aria-modal="true" aria-labelledby="estadia-modal-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">{estadiaEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="estadia-modal-title">{estadiaEnEdicion ? `Editar estadía ${estadiaEnEdicion.id_estadia}` : 'Registrar estadía'}</h2><p>Completa las fechas y selecciona la reserva y el empleado responsable.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalEstadia(false)} aria-label="Cerrar ventana">×</button></div><form onSubmit={guardarEstadia}><div className="reservation-form-grid"><label className="reservation-form-field"><span>Reserva relacionada *</span><select value={formularioEstadia.reserva_id_reserva} onChange={e => setFormularioEstadia(actual => ({ ...actual, reserva_id_reserva: e.target.value }))} required><option value="">Selecciona una reserva</option>{reservas.filter(item => item.estado !== 'CANCELADA').map(item => <option key={item.id_reserva} value={item.id_reserva}>RES-{String(item.id_reserva).padStart(3, '0')} · {nombreClienteReserva(item)} · Hab. {numeroHabitacionReserva(item)}</option>)}</select><small>Esta selección mantiene la clave foránea de RESERVA.</small></label><label className="reservation-form-field"><span>Empleado responsable *</span><select value={formularioEstadia.empleado_id_empleado} onChange={e => setFormularioEstadia(actual => ({ ...actual, empleado_id_empleado: e.target.value }))} required><option value="">Selecciona un empleado</option>{empleados.map(empleado => <option key={empleado.id} value={empleado.id}>{empleado.nombre} {empleado.apellido} · ID {empleado.id}</option>)}</select><small>Esta selección mantiene EMPLEADO_ID_EMPLEADO.</small></label><label className="reservation-form-field"><span>Fecha de check-in *</span><input type="date" value={formularioEstadia.fecha_check_in} onChange={e => setFormularioEstadia(actual => ({ ...actual, fecha_check_in: e.target.value }))} required /></label><label className="reservation-form-field"><span>Fecha de check-out *</span><input type="date" min={formularioEstadia.fecha_check_in || undefined} value={formularioEstadia.fecha_check_out} onChange={e => setFormularioEstadia(actual => ({ ...actual, fecha_check_out: e.target.value }))} required /></label></div>{errorEstadia && <p className="reservation-form-error" role="alert">{errorEstadia}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalEstadia(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{estadiaEnEdicion ? 'Guardar cambios' : 'Registrar estadía'}</button></div></form></section></div>}
-            {estadiaSeleccionada && (() => { const reserva = obtenerReservaEstadia(estadiaSeleccionada); const empleado = obtenerEmpleadoEstadia(estadiaSeleccionada); const cargo = empleado ? obtenerCargoEmpleado(empleado) : null; const hotel = empleado ? obtenerHotelEmpleado(empleado) : null; const pagosEstadia = pagos.filter(pago => Number(pago.estadia_id_estadia) === Number(estadiaSeleccionada.id_estadia)); const consumosEstadia = consumosServicios.filter(consumo => Number(consumo.estadia_id_estadia) === Number(estadiaSeleccionada.id_estadia)); return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setEstadiaSeleccionada(null) }}><section className="reservation-detail-modal detail-wide-modal" role="dialog" aria-modal="true" aria-labelledby="estadia-detail-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">INFORMACIÓN DEL REGISTRO</span><h2 id="estadia-detail-title">Detalle de estadía</h2><p>Información de ESTADIA y sus entidades relacionadas.</p></div><button type="button" className="reservation-modal-close" onClick={() => setEstadiaSeleccionada(null)} aria-label="Cerrar detalle">×</button></div><DetailPrimaryKey label="ID_ESTADIA (PK)" value={estadiaSeleccionada.id_estadia} /><div className="reservation-detail-grid"><article className="reservation-detail-group"><h3>Datos de la estadía</h3><div className="reservation-detail-item"><span>Fecha de check-in</span><strong>{formatearFechaReserva(estadiaSeleccionada.fecha_check_in)}</strong></div><div className="reservation-detail-item"><span>Fecha de check-out</span><strong>{formatearFechaReserva(estadiaSeleccionada.fecha_check_out)}</strong></div></article><article className="reservation-detail-group"><h3>Reserva relacionada</h3><div className="reservation-detail-item"><span>RESERVA_ID_RESERVA (FK)</span><strong>{estadiaSeleccionada.reserva_id_reserva ?? reserva?.id_reserva ?? 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Cliente</span><strong>{reserva ? nombreClienteReserva(reserva) : 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Habitación</span><strong>{reserva ? `Hab. ${numeroHabitacionReserva(reserva)}` : 'No registrado'}</strong></div></article><article className="reservation-detail-group"><h3>Empleado responsable</h3><div className="reservation-detail-item"><span>EMPLEADO_ID_EMPLEADO (FK)</span><strong>{estadiaSeleccionada.empleado_id_empleado ?? empleado?.id ?? 'No encontrado'}</strong></div><div className="reservation-detail-item"><span>Nombre</span><strong>{empleado ? `${empleado.nombre} ${empleado.apellido}` : 'No encontrado'}</strong></div><div className="reservation-detail-item"><span>Documento</span><strong>{empleado?.documento ?? 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Fecha de ingreso</span><strong>{empleado?.fechaIngreso ? formatearFechaReserva(empleado.fechaIngreso) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Cargo</span><strong>{cargo?.nombre ?? 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Hotel</span><strong>{hotel?.nombre ?? 'No registrado'}</strong></div></article></div><DetailRelatedRecords title="Pagos asociados" rows={pagosEstadia} emptyMessage="Esta estadía todavía no tiene pagos asociados." columns={[{ key: 'id_pago', label: 'ID_PAGO (PK)', render: row => row.id_pago }, { key: 'fecha_pago', label: 'FECHA_PAGO', render: row => formatearFechaReserva(row.fecha_pago) }, { key: 'monto', label: 'MONTO', render: row => formatearMontoReserva(row.monto) }, { key: 'metodo_pago', label: 'METODO_PAGO', render: row => row.metodo_pago }]} /><DetailRelatedRecords title="Consumos asociados" rows={consumosEstadia} emptyMessage="Esta estadía todavía no tiene consumos asociados." columns={[{ key: 'id_consumo', label: 'ID_CONSUMO (PK)', render: row => row.id_consumo }, { key: 'cantidad', label: 'CANTIDAD', render: row => row.cantidad }, { key: 'subtotal', label: 'SUBTOTAL', render: row => formatearMontoReserva(row.subtotal) }]} /><div className="reservation-modal-footer"><button type="button" className="reservation-save-button" onClick={() => setEstadiaSeleccionada(null)}>Cerrar detalle</button></div></section></div> })()}
+            {mostrarModalEstadia && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalEstadia(false) }}><section className="reservation-modal" role="dialog" aria-modal="true" aria-labelledby="estadia-modal-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">{estadiaEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="estadia-modal-title">{estadiaEnEdicion ? `Editar estadía ${estadiaEnEdicion.id_estadia}` : 'Registrar estadía'}</h2><p>Completa las fechas y selecciona la reserva y el empleado responsable.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalEstadia(false)} aria-label="Cerrar ventana">×</button></div><form onSubmit={guardarEstadia}><div className="reservation-form-grid"><label className="reservation-form-field"><span>Reserva relacionada *</span><select value={formularioEstadia.reserva_id_reserva} onChange={e => setFormularioEstadia(actual => ({ ...actual, reserva_id_reserva: e.target.value }))} required><option value="">Selecciona una reserva</option>{reservasVisibles.filter(item => item.estado !== 'CANCELADA').map(item => <option key={item.id_reserva} value={item.id_reserva}>RES-{String(item.id_reserva).padStart(3, '0')} · {nombreClienteReserva(item)} · Hab. {numeroHabitacionReserva(item)}</option>)}</select><small>Esta selección mantiene la clave foránea de RESERVA.</small></label><label className="reservation-form-field"><span>Empleado responsable *</span><select value={formularioEstadia.empleado_id_empleado} onChange={e => setFormularioEstadia(actual => ({ ...actual, empleado_id_empleado: e.target.value }))} required><option value="">Selecciona un empleado</option>{empleadosDelHotel.map(empleado => <option key={empleado.id} value={empleado.id}>{empleado.nombre} {empleado.apellido} · ID {empleado.id}</option>)}</select><small>Esta selección mantiene EMPLEADO_ID_EMPLEADO.</small></label><label className="reservation-form-field"><span>Fecha de check-in *</span><input type="date" value={formularioEstadia.fecha_check_in} onChange={e => setFormularioEstadia(actual => ({ ...actual, fecha_check_in: e.target.value }))} required /></label><label className="reservation-form-field"><span>Fecha de check-out *</span><input type="date" min={formularioEstadia.fecha_check_in || undefined} value={formularioEstadia.fecha_check_out} onChange={e => setFormularioEstadia(actual => ({ ...actual, fecha_check_out: e.target.value }))} required /></label></div>{errorEstadia && <p className="reservation-form-error" role="alert">{errorEstadia}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalEstadia(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{estadiaEnEdicion ? 'Guardar cambios' : 'Registrar estadía'}</button></div></form></section></div>}
+            {estadiaSeleccionada && (() => { const reserva = obtenerReservaEstadia(estadiaSeleccionada); const empleado = obtenerEmpleadoEstadia(estadiaSeleccionada); const cargo = empleado ? obtenerCargoEmpleado(empleado) : null; const hotel = empleado ? obtenerHotelEmpleado(empleado) : null; const pagosEstadia = pagosVisibles.filter(pago => Number(pago.estadia_id_estadia) === Number(estadiaSeleccionada.id_estadia)); const consumosEstadia = consumosVisibles.filter(consumo => Number(consumo.estadia_id_estadia) === Number(estadiaSeleccionada.id_estadia)); return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setEstadiaSeleccionada(null) }}><section className="reservation-detail-modal detail-wide-modal" role="dialog" aria-modal="true" aria-labelledby="estadia-detail-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">INFORMACIÓN DEL REGISTRO</span><h2 id="estadia-detail-title">Detalle de estadía</h2><p>Información de ESTADIA y sus entidades relacionadas.</p></div><button type="button" className="reservation-modal-close" onClick={() => setEstadiaSeleccionada(null)} aria-label="Cerrar detalle">×</button></div><DetailPrimaryKey label="ID_ESTADIA (PK)" value={estadiaSeleccionada.id_estadia} /><div className="reservation-detail-grid"><article className="reservation-detail-group"><h3>Datos de la estadía</h3><div className="reservation-detail-item"><span>Fecha de check-in</span><strong>{formatearFechaReserva(estadiaSeleccionada.fecha_check_in)}</strong></div><div className="reservation-detail-item"><span>Fecha de check-out</span><strong>{formatearFechaReserva(estadiaSeleccionada.fecha_check_out)}</strong></div></article><article className="reservation-detail-group"><h3>Reserva relacionada</h3><div className="reservation-detail-item"><span>RESERVA_ID_RESERVA (FK)</span><strong>{estadiaSeleccionada.reserva_id_reserva ?? reserva?.id_reserva ?? 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Cliente</span><strong>{reserva ? nombreClienteReserva(reserva) : 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Habitación</span><strong>{reserva ? `Hab. ${numeroHabitacionReserva(reserva)}` : 'No registrado'}</strong></div></article><article className="reservation-detail-group"><h3>Empleado responsable</h3><div className="reservation-detail-item"><span>EMPLEADO_ID_EMPLEADO (FK)</span><strong>{estadiaSeleccionada.empleado_id_empleado ?? empleado?.id ?? 'No encontrado'}</strong></div><div className="reservation-detail-item"><span>Nombre</span><strong>{empleado ? `${empleado.nombre} ${empleado.apellido}` : 'No encontrado'}</strong></div><div className="reservation-detail-item"><span>Documento</span><strong>{empleado?.documento ?? 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Fecha de ingreso</span><strong>{empleado?.fechaIngreso ? formatearFechaReserva(empleado.fechaIngreso) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Cargo</span><strong>{cargo?.nombre ?? 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Hotel</span><strong>{hotel?.nombre ?? 'No registrado'}</strong></div></article></div><DetailRelatedRecords title="Pagos asociados" rows={pagosEstadia} emptyMessage="Esta estadía todavía no tiene pagos asociados." columns={[{ key: 'id_pago', label: 'ID_PAGO (PK)', render: row => row.id_pago }, { key: 'fecha_pago', label: 'FECHA_PAGO', render: row => formatearFechaReserva(row.fecha_pago) }, { key: 'monto', label: 'MONTO', render: row => formatearMontoReserva(row.monto) }, { key: 'metodo_pago', label: 'METODO_PAGO', render: row => row.metodo_pago }]} /><DetailRelatedRecords title="Consumos asociados" rows={consumosEstadia} emptyMessage="Esta estadía todavía no tiene consumos asociados." columns={[{ key: 'id_consumo', label: 'ID_CONSUMO (PK)', render: row => row.id_consumo }, { key: 'cantidad', label: 'CANTIDAD', render: row => row.cantidad }, { key: 'subtotal', label: 'SUBTOTAL', render: row => formatearMontoReserva(row.subtotal) }]} /><div className="reservation-modal-footer"><button type="button" className="reservation-save-button" onClick={() => setEstadiaSeleccionada(null)}>Cerrar detalle</button></div></section></div> })()}
             {estadiaPorEliminar && (() => {
-              const consumosRelacionados = consumosServicios.filter(consumo => Number(consumo.estadia_id_estadia) === Number(estadiaPorEliminar.id_estadia))
-              const pagosRelacionados = pagos.filter(pago => Number(pago.estadia_id_estadia) === Number(estadiaPorEliminar.id_estadia))
+              const consumosRelacionados = consumosVisibles.filter(consumo => Number(consumo.estadia_id_estadia) === Number(estadiaPorEliminar.id_estadia))
+              const pagosRelacionados = pagosVisibles.filter(pago => Number(pago.estadia_id_estadia) === Number(estadiaPorEliminar.id_estadia))
               const tieneDependencias = consumosRelacionados.length > 0 || pagosRelacionados.length > 0
               return <div className="reservation-modal-backdrop"><section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="estadia-delete-title"><div className="reservation-confirm-icon">!</div><h2 id="estadia-delete-title">{tieneDependencias ? 'No se puede eliminar esta estadía' : '¿Eliminar esta estadía?'}</h2><p>{tieneDependencias ? <>La estadía <strong>{estadiaPorEliminar.id_estadia}</strong> tiene registros relacionados y debe conservarse.</> : <>Se eliminará la estadía <strong>{estadiaPorEliminar.id_estadia}</strong>.</>}</p>{tieneDependencias && <div className="reservation-confirm-notice">{consumosRelacionados.length > 0 && <div><strong>{consumosRelacionados.length}</strong> consumo(s) asociado(s).</div>}{pagosRelacionados.length > 0 && <div><strong>{pagosRelacionados.length}</strong> pago(s) asociado(s).</div>}Elimina o reasigna esos registros antes de eliminar la estadía.</div>}{errorEstadia && <div className="reservation-confirm-notice">{errorEstadia}</div>}<div className="reservation-modal-footer">{tieneDependencias ? <button type="button" className="reservation-cancel-button" onClick={() => { setEstadiaPorEliminar(null); setErrorEstadia('') }}>Cerrar</button> : <><button type="button" className="reservation-cancel-button" onClick={() => { setEstadiaPorEliminar(null); setErrorEstadia('') }}>Conservar estadía</button><button type="button" className="reservation-confirm-danger-button" onClick={confirmarEliminarEstadia}>Sí, eliminar</button></>}</div></section></div>
             })()}
@@ -2589,7 +2717,7 @@ function App() {
             </div>
             <div className="reservations-heading-note">
               <span className="reservations-note-icon">▦</span>
-              <div><strong>{reservas.length} registros</strong><span>Reservas en el sistema</span></div>
+              <div><strong>{reservasVisibles.length} registros</strong><span>Reservas en el sistema</span></div>
             </div>
           </div>
 
@@ -2600,19 +2728,19 @@ function App() {
           <div className="room-summary reservations-summary">
             <article className="room-summary-card reservation-stat reservation-stat-total">
               <div className="reservation-stat-top"><span>Total de reservas</span><span className="reservation-stat-icon">▤</span></div>
-              <h2>{reservas.length}</h2><small>Registros almacenados</small>
+              <h2>{reservasVisibles.length}</h2><small>Registros almacenados</small>
             </article>
             <article className="room-summary-card reservation-stat reservation-stat-confirmed">
               <div className="reservation-stat-top"><span>Confirmadas</span><span className="reservation-stat-icon">✓</span></div>
-              <h2>{reservas.filter(r => r.estado === 'CONFIRMADA').length}</h2><small>Reservas aprobadas</small>
+              <h2>{reservasVisibles.filter(r => r.estado === 'CONFIRMADA').length}</h2><small>Reservas aprobadas</small>
             </article>
             <article className="room-summary-card reservation-stat reservation-stat-completed">
               <div className="reservation-stat-top"><span>Completadas</span><span className="reservation-stat-icon">▣</span></div>
-              <h2>{reservas.filter(r => r.estado === 'COMPLETADA').length}</h2><small>Estadías finalizadas</small>
+              <h2>{reservasVisibles.filter(r => r.estado === 'COMPLETADA').length}</h2><small>Estadías finalizadas</small>
             </article>
             <article className="room-summary-card reservation-stat reservation-stat-cancelled">
               <div className="reservation-stat-top"><span>Canceladas</span><span className="reservation-stat-icon">×</span></div>
-              <h2>{reservas.filter(r => r.estado === 'CANCELADA').length}</h2><small>Reservas anuladas</small>
+              <h2>{reservasVisibles.filter(r => r.estado === 'CANCELADA').length}</h2><small>Reservas anuladas</small>
             </article>
           </div>
 
@@ -2621,7 +2749,7 @@ function App() {
               <div><h2>Listado de reservas</h2><p>Revisa los huéspedes, habitaciones y fechas de cada reserva.</p></div>
               <div className="reservations-header-actions">
                 <span className="reservations-total-pill">{reservasFiltradas.length} resultados</span>
-                <button type="button" className="reservation-new-button" onClick={abrirModalReserva}>＋ Nueva reserva</button>
+                <button type="button" className="reservation-new-button" hidden={!puedeCrearEnModulo('Reservas')} onClick={abrirModalReserva}>＋ Nueva reserva</button>
               </div>
             </div>
             <div className="room-filters reservations-filters list-filter-row">
@@ -2637,8 +2765,8 @@ function App() {
                   <option value="">Selecciona un atributo</option>
                   {atributosDisponiblesReserva.map(atributo => <option key={atributo.campo} value={atributo.campo}>{atributo.etiqueta}</option>)}
                 </select>
-                {atributoFiltroReservaSeleccionado?.tipo === 'cliente' && <select aria-label="Seleccionar cliente" value={valorFiltroReserva} onChange={e => setValorFiltroReserva(e.target.value)}><option value="">Selecciona un cliente</option>{clientes.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre} {cliente.apellido} · {cliente.documento}</option>)}</select>}
-                {atributoFiltroReservaSeleccionado?.tipo === 'habitacion' && <select aria-label="Seleccionar habitación" value={valorFiltroReserva} onChange={e => setValorFiltroReserva(e.target.value)}><option value="">Selecciona una habitación</option>{habitaciones.map(habitacion => <option key={habitacion.id} value={habitacion.id}>Habitación {habitacion.numero}</option>)}</select>}
+                {atributoFiltroReservaSeleccionado?.tipo === 'cliente' && <select aria-label="Seleccionar cliente" value={valorFiltroReserva} onChange={e => setValorFiltroReserva(e.target.value)}><option value="">Selecciona un cliente</option>{clientesVisibles.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre} {cliente.apellido} · {cliente.documento}</option>)}</select>}
+                {atributoFiltroReservaSeleccionado?.tipo === 'habitacion' && <select aria-label="Seleccionar habitación" value={valorFiltroReserva} onChange={e => setValorFiltroReserva(e.target.value)}><option value="">Selecciona una habitación</option>{habitacionesVisibles.map(habitacion => <option key={habitacion.id} value={habitacion.id}>Habitación {habitacion.numero}</option>)}</select>}
                 {atributoFiltroReservaSeleccionado?.tipo === 'estado' && <select aria-label="Seleccionar estado de reserva" value={valorFiltroReserva} onChange={e => setValorFiltroReserva(e.target.value)}><option value="">Selecciona un estado</option>{estadosReservaDisponibles.map(estado => <option key={estado} value={estado}>{estado.charAt(0) + estado.slice(1).toLowerCase()}</option>)}</select>}
                 {atributoFiltroReservaSeleccionado?.tipo === 'fecha' && <input type="date" aria-label={`Valor para ${atributoFiltroReservaSeleccionado.etiqueta}`} value={valorFiltroReserva} onChange={e => setValorFiltroReserva(e.target.value)} />}
                 {atributoFiltroReservaSeleccionado?.tipo === 'numero' && <input type="number" step="any" aria-label={`Valor para ${atributoFiltroReservaSeleccionado.etiqueta}`} value={valorFiltroReserva} onChange={e => setValorFiltroReserva(e.target.value)} placeholder="Introduce un número" />}
@@ -2674,14 +2802,14 @@ function App() {
                         <td><span className={`reservation-status reservation-status-${reserva.estado.toLowerCase()}`}><span className="reservation-status-dot"></span>{reserva.estado.charAt(0) + reserva.estado.slice(1).toLowerCase()}</span></td>
                         <td className="reservation-amount">{formatearMontoReserva(reserva.total_estimado)}</td>
                         <td className="reservation-amount reservation-advance">{formatearMontoReserva(reserva.monto_adelanto)}</td>
-                        <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => abrirDetalleReserva(reserva)} aria-label={`Consultar ${codigoReserva(reserva.id_reserva)}`}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionReserva(reserva)} disabled={reserva.estado === 'CANCELADA'} title={reserva.estado === 'CANCELADA' ? 'Las reservas canceladas no se pueden editar' : 'Editar reserva'} aria-label={`Editar ${codigoReserva(reserva.id_reserva)}`}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => abrirConfirmacionCancelacion(reserva)} disabled={reserva.estado !== 'CONFIRMADA'} title={reserva.estado === 'CONFIRMADA' ? 'Cancelar reserva' : 'Solo se pueden cancelar reservas confirmadas'} aria-label={`Cancelar ${codigoReserva(reserva.id_reserva)}`}>Cancelar</button></div></td>
+                        <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => abrirDetalleReserva(reserva)} aria-label={`Consultar ${codigoReserva(reserva.id_reserva)}`}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Reservas')} onClick={() => abrirEdicionReserva(reserva)} disabled={reserva.estado === 'CANCELADA'} title={reserva.estado === 'CANCELADA' ? 'Las reservas canceladas no se pueden editar' : 'Editar reserva'} aria-label={`Editar ${codigoReserva(reserva.id_reserva)}`}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => abrirConfirmacionCancelacion(reserva)} disabled={reserva.estado !== 'CONFIRMADA'} title={reserva.estado === 'CONFIRMADA' ? 'Cancelar reserva' : 'Solo se pueden cancelar reservas confirmadas'} aria-label={`Cancelar ${codigoReserva(reserva.id_reserva)}`}>Cancelar</button></div></td>
                       </tr>
                     ))}
                   {reservasFiltradas.length === 0 && <tr><td colSpan="8" className="empty-message">No se encontraron reservas que coincidan con los filtros aplicados.</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="reservations-list-footer"><span>Mostrando {reservasFiltradas.length} de {reservas.length} reservas</span><span>Datos temporales estructurados según el modelo relacional</span></div>
+            <div className="reservations-list-footer"><span>Mostrando {reservasFiltradas.length} de {reservasVisibles.length} reservas</span><span>Datos temporales estructurados según el modelo relacional</span></div>
               <ListPagination totalItems={reservasFiltradas.length} {...reservasPagina} onPageChange={pagina => cambiarPaginaLista('reservas', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('reservas', tamano)} />
           </div>
 
@@ -2697,13 +2825,13 @@ function App() {
                     <label className="reservation-form-field"><span>Cliente *</span>
                       <select value={clienteReserva} onChange={e => setClienteReserva(e.target.value)} required>
                         <option value="">Selecciona un cliente</option>
-                        {clientes.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre} {cliente.apellido} · Doc. {cliente.documento}</option>)}
+                        {clientesVisibles.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre} {cliente.apellido} · Doc. {cliente.documento}</option>)}
                       </select>
                     </label>
                     <label className="reservation-form-field"><span>Habitación *</span>
                       <select value={habitacionReserva} onChange={e => setHabitacionReserva(e.target.value)} required>
                         <option value="">Selecciona una habitación</option>
-                        {habitaciones.filter(habitacion => habitacion.estado === 'DISPONIBLE').map(habitacion => <option key={habitacion.id} value={habitacion.id}>Hab. {habitacion.numero} · {nombreTipoHabitacion(habitacion)} · Piso {habitacion.piso}</option>)}
+                        {habitacionesVisibles.filter(habitacion => habitacion.estado === 'DISPONIBLE').map(habitacion => <option key={habitacion.id} value={habitacion.id}>Hab. {habitacion.numero} · {nombreTipoHabitacion(habitacion)} · Piso {habitacion.piso}</option>)}
                       </select>
                     </label>
                     <label className="reservation-form-field"><span>Fecha de entrada *</span><input type="date" value={entradaReserva} min={new Date().toLocaleDateString('en-CA')} onChange={e => setEntradaReserva(e.target.value)} required /></label>
@@ -2731,13 +2859,13 @@ function App() {
                     <label className="reservation-form-field"><span>Cliente *</span>
                       <select value={formularioEdicion.cliente} onChange={e => setFormularioEdicion(actual => ({ ...actual, cliente: e.target.value }))} required>
                         <option value="">Selecciona un cliente</option>
-                        {clientes.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre} {cliente.apellido} · Doc. {cliente.documento}</option>)}
+                        {clientesVisibles.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre} {cliente.apellido} · Doc. {cliente.documento}</option>)}
                       </select>
                     </label>
                     <label className="reservation-form-field"><span>Habitación *</span>
                       <select value={formularioEdicion.habitacion} onChange={e => setFormularioEdicion(actual => ({ ...actual, habitacion: e.target.value }))} required>
                         <option value="">Selecciona una habitación</option>
-                        {habitaciones.filter(habitacion => habitacion.estado === 'DISPONIBLE' || habitacion.id === reservaEnEdicion.habitacion_id_habitacion).map(habitacion => <option key={habitacion.id} value={habitacion.id}>Hab. {habitacion.numero} · {nombreTipoHabitacion(habitacion)} · Piso {habitacion.piso}</option>)}
+                        {habitacionesVisibles.filter(habitacion => habitacion.estado === 'DISPONIBLE' || habitacion.id === reservaEnEdicion.habitacion_id_habitacion).map(habitacion => <option key={habitacion.id} value={habitacion.id}>Hab. {habitacion.numero} · {nombreTipoHabitacion(habitacion)} · Piso {habitacion.piso}</option>)}
                       </select>
                     </label>
                     <label className="reservation-form-field"><span>Fecha de entrada *</span><input type="date" value={formularioEdicion.entrada} onChange={e => setFormularioEdicion(actual => ({ ...actual, entrada: e.target.value }))} required /></label>
@@ -2838,7 +2966,7 @@ function App() {
                     </article>
                   </div>
 
-                  <DetailRelatedRecords title="Estadías asociadas" rows={estadias.filter(estadia => Number(estadia.reserva_id_reserva) === Number(reservaSeleccionada.id_reserva))} emptyMessage="Esta reserva todavía no tiene estadías asociadas." columns={[
+                  <DetailRelatedRecords title="Estadías asociadas" rows={estadiasVisibles.filter(estadia => Number(estadia.reserva_id_reserva) === Number(reservaSeleccionada.id_reserva))} emptyMessage="Esta reserva todavía no tiene estadías asociadas." columns={[
                     { key: 'id_estadia', label: 'ID_ESTADIA (PK)', render: row => row.id_estadia },
                     { key: 'fecha_check_in', label: 'FECHA_CHECK_IN', render: row => formatearFechaReserva(row.fecha_check_in) },
                     { key: 'fecha_check_out', label: 'FECHA_CHECK_OUT', render: row => formatearFechaReserva(row.fecha_check_out) },
@@ -2871,7 +2999,7 @@ function App() {
             <div className="rooms-heading-actions">
               <div className="reservations-heading-note">
                 <span className="reservations-note-icon">▦</span>
-                <div><strong>{clientes.length} registros</strong><span>Clientes en el sistema</span></div>
+                <div><strong>{clientesVisibles.length} registros</strong><span>Clientes en el sistema</span></div>
               </div>
             </div>
           </div>
@@ -2879,11 +3007,11 @@ function App() {
           <div className="room-summary rooms-modern-summary clients-modern-summary">
             <article className="room-summary-card reservation-stat reservation-stat-total">
               <div className="reservation-stat-top"><span>Total de clientes</span><span className="reservation-stat-icon">♙</span></div>
-              <h2>{clientes.length}</h2><small>Clientes registrados</small>
+              <h2>{clientesVisibles.length}</h2><small>Clientes registrados</small>
             </article>
             <article className="room-summary-card reservation-stat clients-stat-registered">
               <div className="reservation-stat-top"><span>Clientes registrados</span><span className="reservation-stat-icon">✓</span></div>
-              <h2>{clientes.length}</h2><small>Huéspedes en el sistema</small>
+              <h2>{clientesVisibles.length}</h2><small>Huéspedes en el sistema</small>
             </article>
             <article className="room-summary-card reservation-stat clients-stat-nationalities">
               <div className="reservation-stat-top"><span>Nacionalidades</span><span className="reservation-stat-icon">◎</span></div>
@@ -2898,7 +3026,7 @@ function App() {
           <div className="room-list reservations-list rooms-modern-list clients-list">
             <div className="room-list-header reservations-list-header">
               <div><h2>Listado de clientes</h2><p>Administra los datos personales y de contacto de los huéspedes.</p></div>
-              <div className="reservations-header-actions"><span className="reservations-total-pill">{clientesFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroCliente}>＋ Nuevo cliente</button></div>
+              <div className="reservations-header-actions"><span className="reservations-total-pill">{clientesFiltrados.length} resultados</span><button type="button" className="reservation-new-button" hidden={!puedeCrearEnModulo('Clientes')} onClick={abrirRegistroCliente}>＋ Nuevo cliente</button></div>
             </div>
             <DynamicListFilterPanel title="Clientes" listKey="clientes" searchValue={busquedaCliente} searchPlaceholder="Buscar por nombre, documento, correo o teléfono..." attributes={atributosFiltroClientes} activeFilters={obtenerFiltrosActivosLista('clientes')} onSearchChange={valor => actualizarFiltroLista('clientes', setBusquedaCliente, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaCliente(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
@@ -2907,13 +3035,13 @@ function App() {
                 <tbody>
                   {clientesPagina.rows.map(cliente => <tr key={cliente.id}>
                     <td>{cliente.id}</td><td><strong className="client-name">{cliente.nombre}</strong></td><td>{cliente.apellido}</td><td>{cliente.documento}</td><td>{cliente.email}</td><td>{cliente.telefono}</td><td>{cliente.nacionalidad}</td>
-                    <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setClienteSeleccionado(cliente)}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionCliente(cliente)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => setClientePorEliminar(cliente)}>Eliminar</button></div></td>
+                    <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setClienteSeleccionado(cliente)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Clientes')} onClick={() => abrirEdicionCliente(cliente)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => setClientePorEliminar(cliente)}>Eliminar</button></div></td>
                   </tr>)}
                   {clientesFiltrados.length === 0 && <tr><td colSpan="8" className="empty-message">No se encontraron clientes con esos criterios.</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="reservations-list-footer"><span>Mostrando {clientesFiltrados.length} de {clientes.length} clientes</span><span>Tabla CLIENTE del modelo relacional</span></div>
+            <div className="reservations-list-footer"><span>Mostrando {clientesFiltrados.length} de {clientesVisibles.length} clientes</span><span>Tabla CLIENTE del modelo relacional</span></div>
               <ListPagination totalItems={clientesFiltrados.length} {...clientesPagina} onPageChange={pagina => cambiarPaginaLista('clientes', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('clientes', tamano)} />
           </div>
 
@@ -2932,7 +3060,7 @@ function App() {
           </div>}
 
           {clienteSeleccionado && (() => {
-            const reservasCliente = reservas.filter(reserva => Number(reserva.cliente_id_cliente) === Number(clienteSeleccionado.id))
+            const reservasCliente = reservasVisibles.filter(reserva => Number(reserva.cliente_id_cliente) === Number(clienteSeleccionado.id))
             return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setClienteSeleccionado(null) }}>
               <section className="reservation-detail-modal room-detail-modal" role="dialog" aria-modal="true" aria-labelledby="client-detail-title">
                 <div className="reservation-modal-header"><div><span className="reservations-eyebrow">INFORMACIÓN DEL REGISTRO</span><h2 id="client-detail-title">Detalle del cliente: {clienteSeleccionado.nombre} {clienteSeleccionado.apellido}</h2><p>Información personal y reservas relacionadas.</p></div><button type="button" className="reservation-modal-close" onClick={() => setClienteSeleccionado(null)} aria-label="Cerrar ventana">×</button></div>
@@ -2945,13 +3073,13 @@ function App() {
                   { key: 'fecha_salida', label: 'FECHA DE SALIDA', render: reserva => reserva.fecha_salida },
                   { key: 'estado', label: 'ESTADO', render: reserva => reserva.estado },
                 ]} />
-                <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setClienteSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" onClick={() => { setClienteSeleccionado(null); abrirEdicionCliente(clienteSeleccionado) }}>Editar cliente</button></div>
+                <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setClienteSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" hidden={!puedeEditarEnModulo('Clientes')} onClick={() => { setClienteSeleccionado(null); abrirEdicionCliente(clienteSeleccionado) }}>Editar cliente</button></div>
               </section>
             </div>
           })()}
 
           {clientePorEliminar && (() => {
-            const relacionadas = reservas.filter(reserva => Number(reserva.cliente_id_cliente) === Number(clientePorEliminar.id))
+            const relacionadas = reservasVisibles.filter(reserva => Number(reserva.cliente_id_cliente) === Number(clientePorEliminar.id))
             return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setClientePorEliminar(null) }}><section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="client-delete-title"><div className="reservation-confirm-icon">!</div><h2 id="client-delete-title">{relacionadas.length ? 'No se puede eliminar este cliente' : '¿Eliminar este cliente?'}</h2>{relacionadas.length ? <><p>El cliente <strong>{clientePorEliminar.nombre} {clientePorEliminar.apellido}</strong> tiene reservas asociadas.</p><div className="reservation-confirm-notice"><strong>{relacionadas.length}</strong> reserva(s) dependen de este cliente. No se puede eliminar mientras existan esos registros, para conservar la integridad referencial.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setClientePorEliminar(null)}>Cerrar</button></div></> : <><p>Estás por eliminar a <strong>{clientePorEliminar.nombre} {clientePorEliminar.apellido}</strong>. Esta acción no se podrá deshacer.</p><div className="reservation-confirm-notice">Solo se permite eliminar clientes que no estén asociados a reservas.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setClientePorEliminar(null)}>Conservar cliente</button><button type="button" className="reservation-confirm-danger-button" onClick={confirmarEliminarCliente}>Sí, eliminar</button></div></>}</section></div>
           })()}
         </section>
@@ -2980,7 +3108,7 @@ function App() {
               <p>Consulta y administra los empleados registrados en Hotel Los Andes.</p>
             </div>
             <div className="rooms-heading-actions">
-              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{subseccionEmpleados === 'empleados' ? empleados.length : cargos.length} registros</strong><span>{subseccionEmpleados === 'empleados' ? 'Empleados en el sistema' : 'Cargos en el sistema'}</span></div></div>
+              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{subseccionEmpleados === 'empleados' ? empleadosDelHotel.length : cargos.length} registros</strong><span>{subseccionEmpleados === 'empleados' ? 'Empleados en el sistema' : 'Cargos en el sistema'}</span></div></div>
             </div>
           </div>
 
@@ -2991,7 +3119,7 @@ function App() {
 
           {subseccionEmpleados === 'empleados' && <>
           <div className="room-summary rooms-modern-summary employees-modern-summary">
-            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de empleados</span><span className="reservation-stat-icon">♙</span></div><h2>{empleados.length}</h2><small>Empleados registrados</small></article>
+            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de empleados</span><span className="reservation-stat-icon">♙</span></div><h2>{empleadosDelHotel.length}</h2><small>Empleados registrados</small></article>
             <article className="room-summary-card reservation-stat employees-stat-roles"><div className="reservation-stat-top"><span>Cargos asignados</span><span className="reservation-stat-icon">▤</span></div><h2>{new Set(empleados.map(e => e.cargo_id_cargo).filter(Boolean)).size}</h2><small>Funciones registradas</small></article>
             <article className="room-summary-card reservation-stat employees-stat-results"><div className="reservation-stat-top"><span>Empleados encontrados</span><span className="reservation-stat-icon">⌕</span></div><h2>{empleadosFiltrados.length}</h2><small>Coincidencias de búsqueda</small></article>
             <article className="room-summary-card reservation-stat employees-stat-hotels"><div className="reservation-stat-top"><span>Hoteles registrados</span><span className="reservation-stat-icon">▣</span></div><h2>{new Set(empleados.map(e => e.hotel_id_hotel).filter(Boolean)).size}</h2><small>Hoteles con personal</small></article>
@@ -3017,7 +3145,7 @@ function App() {
                 </tbody>
               </table>
             </div>
-            <div className="reservations-list-footer"><span>Mostrando {empleadosFiltrados.length} de {empleados.length} empleados</span><span>Tabla EMPLEADO del modelo relacional</span></div>
+            <div className="reservations-list-footer"><span>Mostrando {empleadosFiltrados.length} de {empleadosDelHotel.length} empleados</span><span>Tabla EMPLEADO del modelo relacional</span></div>
               <ListPagination totalItems={empleadosFiltrados.length} {...empleadosPagina} onPageChange={pagina => cambiarPaginaLista('empleados', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('empleados', tamano)} />
           </div>
 
@@ -3121,7 +3249,7 @@ function App() {
           {empleadoSeleccionado && (() => {
             const cargoDetalle = obtenerCargoEmpleado(empleadoSeleccionado)
             const hotelDetalle = obtenerHotelEmpleado(empleadoSeleccionado)
-            const estadiasEmpleado = estadias.filter(estadia => Number(estadia.empleado_id_empleado) === Number(empleadoSeleccionado.id))
+            const estadiasEmpleado = estadiasVisibles.filter(estadia => Number(estadia.empleado_id_empleado) === Number(empleadoSeleccionado.id))
             const mantenimientosEmpleado = mantenimientos.filter(mantenimiento => Number(mantenimiento.empleado_id_empleado) === Number(empleadoSeleccionado.id))
             const mostrarDato = valor => valor !== null && valor !== undefined && valor !== '' ? valor : 'No registrado'
             return (
@@ -3191,7 +3319,7 @@ function App() {
           })()}
 
           {empleadoPorEliminar && (() => {
-            const estadiasRelacionadas = estadias.filter(estadia => Number(estadia.empleado_id_empleado) === Number(empleadoPorEliminar.id))
+            const estadiasRelacionadas = estadiasVisibles.filter(estadia => Number(estadia.empleado_id_empleado) === Number(empleadoPorEliminar.id))
             const mantenimientosRelacionados = mantenimientos.filter(mantenimiento => Number(mantenimiento.empleado_id_empleado) === Number(empleadoPorEliminar.id))
             const tieneRelaciones = estadiasRelacionadas.length > 0 || mantenimientosRelacionados.length > 0
             return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setEmpleadoPorEliminar(null) }}><section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="employee-delete-title"><div className="reservation-confirm-icon">!</div><h2 id="employee-delete-title">{tieneRelaciones ? 'No se puede eliminar este empleado' : '¿Eliminar este empleado?'}</h2>{tieneRelaciones ? <><p><strong>{empleadoPorEliminar.nombre} {empleadoPorEliminar.apellido}</strong> aparece asociado a estos registros:</p><div className="reservation-confirm-notice">{estadiasRelacionadas.length > 0 && <div><strong>{estadiasRelacionadas.length}</strong> estadía(s) asociada(s).</div>}{mantenimientosRelacionados.length > 0 && <div><strong>{mantenimientosRelacionados.length}</strong> mantenimiento(s) asociado(s).</div>}Actualiza o elimina esos registros antes de quitar al empleado.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setEmpleadoPorEliminar(null)}>Cerrar</button></div></> : <><p>Estás por eliminar a <strong>{empleadoPorEliminar.nombre} {empleadoPorEliminar.apellido}</strong>. Esta acción no se podrá deshacer.</p><div className="reservation-confirm-notice">El registro se quitará de la lista de empleados.</div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setEmpleadoPorEliminar(null)}>Conservar empleado</button><button type="button" className="reservation-confirm-danger-button" onClick={confirmarEliminarEmpleado}>Sí, eliminar</button></div></>}</section></div>
@@ -3214,7 +3342,7 @@ function App() {
                 <h1>Gestión de consumos</h1>
                 <p>Administra los consumos de servicios asociados a las estadías.</p>
               </div>
-              <div className="rooms-heading-actions"><div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{consumosServicios.length} registros</strong><span>Consumos en el sistema</span></div></div></div>
+              <div className="rooms-heading-actions"><div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{consumosVisibles.length} registros</strong><span>Consumos en el sistema</span></div></div></div>
             </div>
 
             <div className="services-subnav" role="tablist" aria-label="Pestañas de Consumos y Servicios">
@@ -3224,7 +3352,7 @@ function App() {
 
 
           <div className="room-summary rooms-modern-summary services-modern-summary">
-              <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de consumos</span><span className="reservation-stat-icon">▤</span></div><h2>{consumosServicios.length}</h2><small>Registros de consumo</small></article>
+              <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de consumos</span><span className="reservation-stat-icon">▤</span></div><h2>{consumosVisibles.length}</h2><small>Registros de consumo</small></article>
               <article className="room-summary-card reservation-stat services-stat-average"><div className="reservation-stat-top"><span>Unidades consumidas</span><span className="reservation-stat-icon">#</span></div><h2>{consumosServicios.reduce((total, consumo) => total + Number(consumo.cantidad || 0), 0)}</h2><small>Suma de cantidades</small></article>
               <article className="room-summary-card reservation-stat services-stat-cheapest"><div className="reservation-stat-top"><span>Importe acumulado</span><span className="reservation-stat-icon">S/</span></div><h2>S/ {consumosServicios.reduce((total, consumo) => total + Number(consumo.subtotal || 0), 0).toFixed(2)}</h2><small>Suma de subtotales</small></article>
               <article className="room-summary-card reservation-stat services-stat-results"><div className="reservation-stat-top"><span>Resultados encontrados</span><span className="reservation-stat-icon">⌕</span></div><h2>{consumosFiltrados.length}</h2><small>Coincidencias de búsqueda</small></article>
@@ -3233,7 +3361,7 @@ function App() {
             <div className="room-list reservations-list rooms-modern-list services-list">
               <div className="room-list-header reservations-list-header">
                 <div><h2>Listado de consumos</h2><p>Registros de la tabla CONSUMO_SERVICIO.</p></div>
-                <div className="reservations-header-actions"><span className="reservations-total-pill">{consumosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroConsumo} disabled={estadias.length === 0} title={estadias.length === 0 ? 'Primero registra una estadía para poder asociar un consumo.' : 'Registrar consumo'}>＋ Nuevo consumo</button></div>
+                <div className="reservations-header-actions"><span className="reservations-total-pill">{consumosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" hidden={!puedeCrearEnModulo('Consumos')} onClick={abrirRegistroConsumo} disabled={estadiasVisibles.length === 0} title={estadiasVisibles.length === 0 ? 'Primero registra una estadía para poder asociar un consumo.' : 'Registrar consumo'}>＋ Nuevo consumo</button></div>
               </div>
               <DynamicListFilterPanel title="Consumos" listKey="consumos" searchValue={busquedaConsumo} searchPlaceholder="Buscar por ID, estadía, servicio, cantidad o subtotal..." attributes={atributosFiltroConsumos} activeFilters={obtenerFiltrosActivosLista('consumos')} onSearchChange={valor => actualizarFiltroLista('consumos', setBusquedaConsumo, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaConsumo(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
@@ -3241,26 +3369,26 @@ function App() {
                   <thead><tr><SortableHeader field='id' list='consumos' label='ID_CONSUMO' sort={ordenesLista['consumos']} onSort={campo => alternarOrdenLista('consumos', campo)} /><SortableHeader field='cantidad' list='consumos' label='CANTIDAD' sort={ordenesLista['consumos']} onSort={campo => alternarOrdenLista('consumos', campo)} /><SortableHeader field='subtotal' list='consumos' label='SUBTOTAL' sort={ordenesLista['consumos']} onSort={campo => alternarOrdenLista('consumos', campo)} /><th className="reservation-action-heading">ACCIONES</th></tr></thead>
                   <tbody>
                     {consumosPagina.rows.map(consumo => {
-                     return <tr key={consumo.id_consumo}><td>{consumo.id_consumo}</td><td>{consumo.cantidad}</td><td>S/ {Number(consumo.subtotal).toFixed(2)}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setConsumoSeleccionado(consumo)}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionConsumo(consumo)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => setConsumoPorEliminar(consumo)}>Eliminar</button></div></td></tr>
+                     return <tr key={consumo.id_consumo}><td>{consumo.id_consumo}</td><td>{consumo.cantidad}</td><td>S/ {Number(consumo.subtotal).toFixed(2)}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setConsumoSeleccionado(consumo)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Consumos')} onClick={() => abrirEdicionConsumo(consumo)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => setConsumoPorEliminar(consumo)}>Eliminar</button></div></td></tr>
                     })}
                     {consumosFiltrados.length === 0 && <tr><td colSpan="4" className="empty-message">{busquedaConsumo ? 'No se encontraron consumos con ese criterio.' : 'Todavía no hay consumos registrados en CONSUMO_SERVICIO.'}</td></tr>}
                   </tbody>
                 </table>
               </div>
-              <div className="reservations-list-footer"><span>Mostrando {consumosFiltrados.length} de {consumosServicios.length} consumos</span><span>Tabla CONSUMO_SERVICIO del modelo relacional</span></div>
+              <div className="reservations-list-footer"><span>Mostrando {consumosFiltrados.length} de {consumosVisibles.length} consumos</span><span>Tabla CONSUMO_SERVICIO del modelo relacional</span></div>
               <ListPagination totalItems={consumosFiltrados.length} {...consumosPagina} onPageChange={pagina => cambiarPaginaLista('consumos', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('consumos', tamano)} />
-              {estadias.length === 0 && <p className="consumption-dependency-note">Para registrar un consumo primero deben existir registros en ESTADIA. El formulario y la relación con SERVICIO ya están preparados, pero no se habilita el alta para evitar claves foráneas inválidas.</p>}
+              {estadiasVisibles.length === 0 && <p className="consumption-dependency-note">Para registrar un consumo primero deben existir registros en ESTADIA. El formulario y la relación con SERVICIO ya están preparados, pero no se habilita el alta para evitar claves foráneas inválidas.</p>}
             </div>
 
             {mostrarModalConsumo && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalConsumo(false) }}><section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="consumption-form-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">{consumoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="consumption-form-title">{consumoEnEdicion ? 'Editar consumo' : 'Registrar consumo'}</h2><p>Completa los atributos y las claves foráneas de CONSUMO_SERVICIO.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalConsumo(false)} aria-label="Cerrar ventana">×</button></div><form onSubmit={guardarConsumo}><div className="reservation-form-grid">
-              <label className="reservation-form-field"><span>Estadía (FK) *</span><select value={formularioConsumo.estadia_id_estadia} onChange={e => setFormularioConsumo(actual => ({ ...actual, estadia_id_estadia: e.target.value }))} required><option value="">Seleccionar estadía</option>{estadias.map(estadia => <option key={estadia.id_estadia} value={estadia.id_estadia}>Estadía #{estadia.id_estadia}</option>)}</select></label>
-              <label className="reservation-form-field"><span>Servicio (FK) *</span><select value={formularioConsumo.servicio_id_servicio} onChange={e => { const servicioId = e.target.value; const servicio = servicios.find(item => Number(item.id) === Number(servicioId)); setFormularioConsumo(actual => ({ ...actual, servicio_id_servicio: servicioId, subtotal: servicio && actual.cantidad ? (Number(servicio.precio) * Number(actual.cantidad)).toFixed(2) : actual.subtotal })) }} required><option value="">Seleccionar servicio</option>{servicios.map(servicio => <option key={servicio.id} value={servicio.id}>{servicio.nombre} — S/ {Number(servicio.precio).toFixed(2)}</option>)}</select></label>
-              <label className="reservation-form-field"><span>Cantidad *</span><input type="number" min="1" step="1" value={formularioConsumo.cantidad} onChange={e => { const cantidad = e.target.value; const servicio = servicios.find(item => Number(item.id) === Number(formularioConsumo.servicio_id_servicio)); setFormularioConsumo(actual => ({ ...actual, cantidad, subtotal: servicio && cantidad ? (Number(servicio.precio) * Number(cantidad)).toFixed(2) : actual.subtotal })) }} required /></label>
+              <label className="reservation-form-field"><span>Estadía (FK) *</span><select value={formularioConsumo.estadia_id_estadia} onChange={e => setFormularioConsumo(actual => ({ ...actual, estadia_id_estadia: e.target.value }))} required><option value="">Seleccionar estadía</option>{estadiasVisibles.map(estadia => <option key={estadia.id_estadia} value={estadia.id_estadia}>Estadía #{estadia.id_estadia}</option>)}</select></label>
+              <label className="reservation-form-field"><span>Servicio (FK) *</span><select value={formularioConsumo.servicio_id_servicio} onChange={e => { const servicioId = e.target.value; const servicio = serviciosVisibles.find(item => Number(item.id) === Number(servicioId)); setFormularioConsumo(actual => ({ ...actual, servicio_id_servicio: servicioId, subtotal: servicio && actual.cantidad ? (Number(servicio.precio) * Number(actual.cantidad)).toFixed(2) : actual.subtotal })) }} required><option value="">Seleccionar servicio</option>{serviciosVisibles.map(servicio => <option key={servicio.id} value={servicio.id}>{servicio.nombre} — S/ {Number(servicio.precio).toFixed(2)}</option>)}</select></label>
+              <label className="reservation-form-field"><span>Cantidad *</span><input type="number" min="1" step="1" value={formularioConsumo.cantidad} onChange={e => { const cantidad = e.target.value; const servicio = serviciosVisibles.find(item => Number(item.id) === Number(formularioConsumo.servicio_id_servicio)); setFormularioConsumo(actual => ({ ...actual, cantidad, subtotal: servicio && cantidad ? (Number(servicio.precio) * Number(cantidad)).toFixed(2) : actual.subtotal })) }} required /></label>
               <label className="reservation-form-field"><span>Subtotal (S/) *</span><input type="number" min="0" step="0.01" value={formularioConsumo.subtotal} onChange={e => setFormularioConsumo(actual => ({ ...actual, subtotal: e.target.value }))} required /></label>
             </div>{errorConsumo && <p className="reservation-form-error" role="alert">{errorConsumo}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalConsumo(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{consumoEnEdicion ? 'Guardar cambios' : 'Registrar consumo'}</button></div></form></section></div>}
 
             {consumoSeleccionado && (() => {
-              const servicio = servicios.find(item => Number(item.id) === Number(consumoSeleccionado.servicio_id_servicio))
+              const servicio = serviciosVisibles.find(item => Number(item.id) === Number(consumoSeleccionado.servicio_id_servicio))
               const estadia = estadias.find(item => Number(item.id_estadia) === Number(consumoSeleccionado.estadia_id_estadia))
               const reserva = estadia ? obtenerReservaEstadia(estadia) : null
               const empleado = estadia ? obtenerEmpleadoEstadia(estadia) : null
@@ -3274,7 +3402,7 @@ function App() {
                     <article className="reservation-detail-group"><h3>Datos del servicio relacionado</h3><div className="reservation-detail-item"><span>SERVICIO_ID_SERVICIO (FK)</span><strong>{consumoSeleccionado.servicio_id_servicio}</strong></div><div className="reservation-detail-item"><span>Nombre</span><strong>{servicio?.nombre ?? 'No encontrado'}</strong></div><div className="reservation-detail-item"><span>Precio unitario</span><strong>{servicio ? `S/ ${Number(servicio.precio).toFixed(2)}` : 'No encontrado'}</strong></div></article>
                     <article className="reservation-detail-group"><h3>Estadía relacionada</h3>{estadia ? <><div className="reservation-detail-item"><span>ESTADIA_ID_ESTADIA (FK)</span><strong>{consumoSeleccionado.estadia_id_estadia}</strong></div><div className="reservation-detail-item"><span>Fecha de check-in</span><strong>{formatearFechaReserva(estadia.fecha_check_in)}</strong></div><div className="reservation-detail-item"><span>Fecha de check-out</span><strong>{formatearFechaReserva(estadia.fecha_check_out)}</strong></div><div className="reservation-detail-item"><span>RESERVA_ID_RESERVA (FK)</span><strong>{estadia.reserva_id_reserva ?? reserva?.id_reserva ?? 'No encontrada'}</strong></div><div className="reservation-detail-item"><span>Cliente</span><strong>{reserva ? nombreClienteReserva(reserva) : 'No encontrado'}</strong></div><div className="reservation-detail-item"><span>Habitación</span><strong>{habitacion ? `N.º ${habitacion.numero}` : 'No encontrada'}</strong></div><div className="reservation-detail-item"><span>EMPLEADO_ID_EMPLEADO (FK)</span><strong>{empleado?.id ?? estadia.empleado_id_empleado ?? 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Empleado responsable</span><strong>{empleado ? `${empleado.nombre} ${empleado.apellido}` : 'No encontrado'}</strong></div></> : <p className="empty-message">No se encontró una estadía asociada a este consumo.</p>}</article>
                   </div>
-                  <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setConsumoSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" onClick={() => { const item = consumoSeleccionado; setConsumoSeleccionado(null); abrirEdicionConsumo(item) }}>Editar consumo</button></div>
+                  <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setConsumoSeleccionado(null)}>Cerrar</button>{puedeEditarEnModulo('Consumos') && <button type="button" className="reservation-save-button" onClick={() => { const item = consumoSeleccionado; setConsumoSeleccionado(null); abrirEdicionConsumo(item) }}>Editar consumo</button>}</div>
                 </section>
               </div>
             })()}
@@ -3291,7 +3419,7 @@ function App() {
               <p>Consulta y administra los servicios registrados en el hotel.</p>
             </div>
             <div className="rooms-heading-actions">
-              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{servicios.length} registros</strong><span>Servicios en el sistema</span></div></div>
+              <div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{serviciosVisibles.length} registros</strong><span>Servicios en el sistema</span></div></div>
             </div>
           </div>
 
@@ -3301,16 +3429,16 @@ function App() {
           </div>
 
           <div className="room-summary rooms-modern-summary services-modern-summary">
-            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de servicios</span><span className="reservation-stat-icon">▤</span></div><h2>{servicios.length}</h2><small>Servicios registrados</small></article>
-            <article className="room-summary-card reservation-stat services-stat-average"><div className="reservation-stat-top"><span>Precio promedio</span><span className="reservation-stat-icon">S/</span></div><h2>S/ {(servicios.reduce((total, servicio) => total + Number(servicio.precio), 0) / (servicios.length || 1)).toFixed(2)}</h2><small>Promedio de precios</small></article>
-            <article className="room-summary-card reservation-stat services-stat-cheapest"><div className="reservation-stat-top"><span>Servicio más económico</span><span className="reservation-stat-icon">↓</span></div><h2>S/ {servicios.length ? Math.min(...servicios.map(servicio => Number(servicio.precio))).toFixed(2) : '0.00'}</h2><small>Precio mínimo registrado</small></article>
+            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de servicios</span><span className="reservation-stat-icon">▤</span></div><h2>{serviciosVisibles.length}</h2><small>Servicios registrados</small></article>
+            <article className="room-summary-card reservation-stat services-stat-average"><div className="reservation-stat-top"><span>Precio promedio</span><span className="reservation-stat-icon">S/</span></div><h2>S/ {(servicios.reduce((total, servicio) => total + Number(servicio.precio), 0) / (serviciosVisibles.length || 1)).toFixed(2)}</h2><small>Promedio de precios</small></article>
+            <article className="room-summary-card reservation-stat services-stat-cheapest"><div className="reservation-stat-top"><span>Servicio más económico</span><span className="reservation-stat-icon">↓</span></div><h2>S/ {serviciosVisibles.length ? Math.min(...servicios.map(servicio => Number(servicio.precio))).toFixed(2) : '0.00'}</h2><small>Precio mínimo registrado</small></article>
             <article className="room-summary-card reservation-stat services-stat-results"><div className="reservation-stat-top"><span>Resultados encontrados</span><span className="reservation-stat-icon">⌕</span></div><h2>{serviciosFiltrados.length}</h2><small>Coincidencias de búsqueda</small></article>
           </div>
 
           <div className="room-list reservations-list rooms-modern-list services-list">
             <div className="room-list-header reservations-list-header">
               <div><h2>Listado de servicios</h2><p>Administra los servicios registrados en el hotel.</p></div>
-              <div className="reservations-header-actions"><span className="reservations-total-pill">{serviciosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroServicio}>＋ Nuevo servicio</button></div>
+              <div className="reservations-header-actions"><span className="reservations-total-pill">{serviciosFiltrados.length} resultados</span>{puedeCrearEnModulo('Servicios') && <button type="button" className="reservation-new-button" onClick={abrirRegistroServicio}>＋ Nuevo servicio</button>}</div>
             </div>
             <DynamicListFilterPanel title="Servicios" listKey="servicios" searchValue={busquedaServicio} searchPlaceholder="Buscar por nombre de servicio..." attributes={atributosFiltroServicios} activeFilters={obtenerFiltrosActivosLista('servicios')} onSearchChange={valor => actualizarFiltroLista('servicios', setBusquedaServicio, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaServicio(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
@@ -3321,19 +3449,19 @@ function App() {
                     <td>{servicio.id}</td><td><strong>{servicio.nombre}</strong></td><td>S/ {Number(servicio.precio).toFixed(2)}</td>
                     <td className="reservation-action-cell"><div className="reservation-row-actions">
                       <button type="button" className="reservation-detail-button" onClick={() => setServicioSeleccionado(servicio)}>Ver detalle</button>
-                      <button type="button" className="reservation-edit-button" onClick={() => abrirEdicionServicio(servicio)}>Editar</button>
-                      <button type="button" className="reservation-cancel-record-button" onClick={() => setServicioPorEliminar(servicio)}>Eliminar</button>
+                      <button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Servicios')} onClick={() => abrirEdicionServicio(servicio)}>Editar</button>
+                      <button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => setServicioPorEliminar(servicio)}>Eliminar</button>
                     </div></td>
                   </tr>)}
                   {serviciosFiltrados.length === 0 && <tr><td colSpan="4" className="empty-message">No se encontraron servicios con ese criterio.</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="reservations-list-footer"><span>Mostrando {serviciosFiltrados.length} de {servicios.length} servicios</span><span>Tabla SERVICIO del modelo relacional</span></div>
+            <div className="reservations-list-footer"><span>Mostrando {serviciosFiltrados.length} de {serviciosVisibles.length} servicios</span><span>Tabla SERVICIO del modelo relacional</span></div>
               <ListPagination totalItems={serviciosFiltrados.length} {...serviciosPagina} onPageChange={pagina => cambiarPaginaLista('servicios', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('servicios', tamano)} />
           </div>
 
-          {mostrarModalServicio && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalServicio(false) }}>
+          {mostrarModalServicio && (servicioEnEdicion ? puedeEditarEnModulo('Servicios') : puedeCrearEnModulo('Servicios')) && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalServicio(false) }}>
             <section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="service-form-title">
               <div className="reservation-modal-header"><div><span className="reservations-eyebrow">{servicioEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="service-form-title">{servicioEnEdicion ? 'Editar servicio' : 'Registrar servicio'}</h2><p>Completa los atributos de la tabla SERVICIO.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalServicio(false)} aria-label="Cerrar ventana">×</button></div>
               <form onSubmit={guardarServicio}><div className="reservation-form-grid">
@@ -3378,7 +3506,7 @@ function App() {
                   { key: 'subtotal', label: 'SUBTOTAL', render: consumo => `S/ ${Number(consumo.subtotal).toFixed(2)}` },
                 ]} />
               })()}
-              <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setServicioSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" onClick={() => { const servicio = servicioSeleccionado; setServicioSeleccionado(null); abrirEdicionServicio(servicio) }}>Editar servicio</button></div>
+              <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setServicioSeleccionado(null)}>Cerrar</button>{puedeEditarEnModulo('Servicios') && <button type="button" className="reservation-save-button" onClick={() => { const servicio = servicioSeleccionado; setServicioSeleccionado(null); abrirEdicionServicio(servicio) }}>Editar servicio</button>}</div>
             </section>
           </div>}
 
@@ -3403,24 +3531,24 @@ function App() {
       const formatearMontoPago = monto => `S/ ${Number(monto || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       return (
         <section className="rooms-section reservations-section payments-section">
-          <div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Gestión de pagos</h1><p>Consulta y administra los pagos asociados a las estadías de Hotel Los Andes.</p></div><div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{pagos.length} registros</strong><span>Pagos en el sistema</span></div></div></div>
+          <div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Gestión de pagos</h1><p>Consulta y administra los pagos asociados a las estadías de Hotel Los Andes.</p></div><div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{pagosVisibles.length} registros</strong><span>Pagos en el sistema</span></div></div></div>
           <div className="room-summary reservations-summary">
-            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de pagos</span><span className="reservation-stat-icon">▤</span></div><h2>{pagos.length}</h2><small>Registros almacenados</small></article>
+            <article className="room-summary-card reservation-stat reservation-stat-total"><div className="reservation-stat-top"><span>Total de pagos</span><span className="reservation-stat-icon">▤</span></div><h2>{pagosVisibles.length}</h2><small>Registros almacenados</small></article>
             <article className="room-summary-card reservation-stat reservation-stat-confirmed"><div className="reservation-stat-top"><span>Importe acumulado</span><span className="reservation-stat-icon">S/</span></div><h2>{formatearMontoPago(totalPagado)}</h2><small>Suma de pagos registrados</small></article>
-            <article className="room-summary-card reservation-stat reservation-stat-completed"><div className="reservation-stat-top"><span>Pagos en efectivo</span><span className="reservation-stat-icon">$</span></div><h2>{pagos.filter(p => p.metodo_pago.toUpperCase() === 'EFECTIVO').length}</h2><small>Según método registrado</small></article>
+            <article className="room-summary-card reservation-stat reservation-stat-completed"><div className="reservation-stat-top"><span>Pagos en efectivo</span><span className="reservation-stat-icon">$</span></div><h2>{pagosVisibles.filter(p => p.metodo_pago.toUpperCase() === 'EFECTIVO').length}</h2><small>Según método registrado</small></article>
             <article className="room-summary-card reservation-stat reservation-stat-cancelled"><div className="reservation-stat-top"><span>Resultados encontrados</span><span className="reservation-stat-icon">⌕</span></div><h2>{pagosFiltrados.length}</h2><small>Coincidencias de búsqueda</small></article>
           </div>
-          <div className="room-list reservations-list"><div className="room-list-header reservations-list-header"><div><h2>Listado de pagos</h2><p>Registros de la tabla PAGO relacionados con ESTADIA.</p></div><div className="reservations-header-actions"><span className="reservations-total-pill">{pagosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroPago} disabled={estadias.length === 0} title={estadias.length === 0 ? 'Primero registra una estadía para poder asociar un pago.' : 'Registrar pago'}>＋ Nuevo pago</button></div></div>
+          <div className="room-list reservations-list"><div className="room-list-header reservations-list-header"><div><h2>Listado de pagos</h2><p>Registros de la tabla PAGO relacionados con ESTADIA.</p></div><div className="reservations-header-actions"><span className="reservations-total-pill">{pagosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" hidden={!puedeCrearEnModulo('Pagos')} onClick={abrirRegistroPago} disabled={estadiasVisibles.length === 0} title={estadiasVisibles.length === 0 ? 'Primero registra una estadía para poder asociar un pago.' : 'Registrar pago'}>＋ Nuevo pago</button></div></div>
             <DynamicListFilterPanel title="Pagos" listKey="pagos" searchValue={busquedaPago} searchPlaceholder="Buscar por ID, estadía, fecha, método o monto..." attributes={atributosFiltroPagos} activeFilters={obtenerFiltrosActivosLista('pagos')} onSearchChange={valor => actualizarFiltroLista('pagos', setBusquedaPago, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaPago(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container"><table className="rooms-table reservations-table"><thead><tr><SortableHeader field='id' list='pagos' label='ID_PAGO' sort={ordenesLista['pagos']} onSort={campo => alternarOrdenLista('pagos', campo)} /><SortableHeader field='fecha' list='pagos' label='FECHA_PAGO' sort={ordenesLista['pagos']} onSort={campo => alternarOrdenLista('pagos', campo)} /><SortableHeader field='monto' list='pagos' label='MONTO' sort={ordenesLista['pagos']} onSort={campo => alternarOrdenLista('pagos', campo)} /><SortableHeader field='metodo' list='pagos' label='METODO_PAGO' sort={ordenesLista['pagos']} onSort={campo => alternarOrdenLista('pagos', campo)} /><th>ACCIONES</th></tr></thead><tbody>
-              {pagosPagina.rows.map(pago => <tr key={pago.id_pago}><td>{pago.id_pago}</td><td>{formatearFechaReserva(pago.fecha_pago)}</td><td>{formatearMontoPago(pago.monto)}</td><td>{pago.metodo_pago}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setPagoSeleccionado(pago)}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionPago(pago)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => setPagoPorEliminar(pago)}>Eliminar</button></div></td></tr>)}
+              {pagosPagina.rows.map(pago => <tr key={pago.id_pago}><td>{pago.id_pago}</td><td>{formatearFechaReserva(pago.fecha_pago)}</td><td>{formatearMontoPago(pago.monto)}</td><td>{pago.metodo_pago}</td><td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setPagoSeleccionado(pago)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={!puedeEditarEnModulo('Pagos')} onClick={() => abrirEdicionPago(pago)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => setPagoPorEliminar(pago)}>Eliminar</button></div></td></tr>)}
               {pagosFiltrados.length === 0 && <tr><td colSpan="5" className="empty-message">{busquedaPago ? 'No se encontraron pagos con ese criterio.' : 'Todavía no hay pagos registrados en PAGO.'}</td></tr>}
-            </tbody></table></div><div className="reservations-list-footer"><span>Mostrando {pagosFiltrados.length} de {pagos.length} pagos</span><span>Tabla PAGO del modelo relacional</span></div>
+            </tbody></table></div><div className="reservations-list-footer"><span>Mostrando {pagosFiltrados.length} de {pagosVisibles.length} pagos</span><span>Tabla PAGO del modelo relacional</span></div>
               <ListPagination totalItems={pagosFiltrados.length} {...pagosPagina} onPageChange={pagina => cambiarPaginaLista('pagos', pagina)} onPageSizeChange={tamano => cambiarTamanoPaginaLista('pagos', tamano)} />
-            {estadias.length === 0 && <p className="consumption-dependency-note">Para registrar un pago primero debe existir una estadía en ESTADIA. El formulario se habilitará cuando haya una estadía disponible, evitando claves foráneas inválidas.</p>}
+            {estadiasVisibles.length === 0 && <p className="consumption-dependency-note">Para registrar un pago primero debe existir una estadía en ESTADIA. El formulario se habilitará cuando haya una estadía disponible, evitando claves foráneas inválidas.</p>}
           </div>
           {mostrarModalPago && <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMostrarModalPago(false) }}><section className="reservation-modal room-create-modal" role="dialog" aria-modal="true" aria-labelledby="payment-form-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">{pagoEnEdicion ? 'ACTUALIZAR REGISTRO' : 'NUEVO REGISTRO'}</span><h2 id="payment-form-title">{pagoEnEdicion ? `Editar pago ${pagoEnEdicion.id_pago}` : 'Registrar pago'}</h2><p>Completa los atributos de PAGO y selecciona la estadía relacionada.</p></div><button type="button" className="reservation-modal-close" onClick={() => setMostrarModalPago(false)} aria-label="Cerrar ventana">×</button></div><form onSubmit={guardarPago}><div className="reservation-form-grid"><label className="reservation-form-field"><span>Estadía relacionada (FK) *</span><select value={formularioPago.estadia_id_estadia} onChange={e => setFormularioPago(actual => ({ ...actual, estadia_id_estadia: e.target.value }))} required><option value="">Selecciona una estadía</option>{estadias.map(item => <option key={item.id_estadia} value={item.id_estadia}>Estadía #{item.id_estadia} · {formatearFechaReserva(item.fecha_check_in)} – {formatearFechaReserva(item.fecha_check_out)}</option>)}</select><small>La selección conserva la clave foránea de ESTADIA.</small></label><label className="reservation-form-field"><span>Fecha de pago *</span><input type="date" value={formularioPago.fecha_pago} onChange={e => setFormularioPago(actual => ({ ...actual, fecha_pago: e.target.value }))} required /></label><label className="reservation-form-field"><span>Monto (S/) *</span><input type="number" min="0.01" step="0.01" placeholder="Ej. 250.00" value={formularioPago.monto} onChange={e => setFormularioPago(actual => ({ ...actual, monto: e.target.value }))} required /></label><label className="reservation-form-field"><span>Método de pago *</span><input type="text" maxLength="50" placeholder="Ej. Efectivo, Tarjeta, Transferencia" value={formularioPago.metodo_pago} onChange={e => setFormularioPago(actual => ({ ...actual, metodo_pago: e.target.value }))} required /></label></div>{errorPago && <p className="reservation-form-error" role="alert">{errorPago}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalPago(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{pagoEnEdicion ? 'Guardar cambios' : 'Registrar pago'}</button></div></form></section></div>}
-          {pagoSeleccionado && (() => { const estadia = obtenerEstadiaPago(pagoSeleccionado); const reserva = obtenerReservaPago(pagoSeleccionado); return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setPagoSeleccionado(null) }}><section className="reservation-detail-modal room-detail-modal" role="dialog" aria-modal="true" aria-labelledby="payment-detail-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">INFORMACIÓN DEL REGISTRO</span><h2 id="payment-detail-title">Detalle del pago</h2><p>Información de PAGO y de la estadía relacionada mediante su clave foránea.</p></div><button type="button" className="reservation-modal-close" onClick={() => setPagoSeleccionado(null)} aria-label="Cerrar detalle">×</button></div><DetailPrimaryKey label="ID_PAGO (PK)" value={pagoSeleccionado.id_pago} /><div className="reservation-detail-grid"><article className="reservation-detail-group"><h3>Datos del pago</h3><div className="reservation-detail-item"><span>Fecha de pago</span><strong>{formatearFechaReserva(pagoSeleccionado.fecha_pago)}</strong></div><div className="reservation-detail-item"><span>Monto</span><strong>{formatearMontoPago(pagoSeleccionado.monto)}</strong></div><div className="reservation-detail-item"><span>Método de pago</span><strong>{pagoSeleccionado.metodo_pago}</strong></div></article><article className="reservation-detail-group"><h3>Estadía relacionada</h3><div className="reservation-detail-item"><span>ESTADIA_ID_ESTADIA (FK)</span><strong>{pagoSeleccionado.estadia_id_estadia}</strong></div><div className="reservation-detail-item"><span>Fecha de check-in</span><strong>{estadia ? formatearFechaReserva(estadia.fecha_check_in) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Fecha de check-out</span><strong>{estadia ? formatearFechaReserva(estadia.fecha_check_out) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Huésped (mediante reserva)</span><strong>{reserva ? nombreClienteReserva(reserva) : 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Habitación (mediante reserva)</span><strong>{reserva ? `Hab. ${numeroHabitacionReserva(reserva)}` : 'No registrada'}</strong></div></article></div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setPagoSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" onClick={() => { const item = pagoSeleccionado; setPagoSeleccionado(null); abrirEdicionPago(item) }}>Editar pago</button></div></section></div> })()}
+          {pagoSeleccionado && (() => { const estadia = obtenerEstadiaPago(pagoSeleccionado); const reserva = obtenerReservaPago(pagoSeleccionado); return <div className="reservation-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setPagoSeleccionado(null) }}><section className="reservation-detail-modal room-detail-modal" role="dialog" aria-modal="true" aria-labelledby="payment-detail-title"><div className="reservation-modal-header"><div><span className="reservations-eyebrow">INFORMACIÓN DEL REGISTRO</span><h2 id="payment-detail-title">Detalle del pago</h2><p>Información de PAGO y de la estadía relacionada mediante su clave foránea.</p></div><button type="button" className="reservation-modal-close" onClick={() => setPagoSeleccionado(null)} aria-label="Cerrar detalle">×</button></div><DetailPrimaryKey label="ID_PAGO (PK)" value={pagoSeleccionado.id_pago} /><div className="reservation-detail-grid"><article className="reservation-detail-group"><h3>Datos del pago</h3><div className="reservation-detail-item"><span>Fecha de pago</span><strong>{formatearFechaReserva(pagoSeleccionado.fecha_pago)}</strong></div><div className="reservation-detail-item"><span>Monto</span><strong>{formatearMontoPago(pagoSeleccionado.monto)}</strong></div><div className="reservation-detail-item"><span>Método de pago</span><strong>{pagoSeleccionado.metodo_pago}</strong></div></article><article className="reservation-detail-group"><h3>Estadía relacionada</h3><div className="reservation-detail-item"><span>ESTADIA_ID_ESTADIA (FK)</span><strong>{pagoSeleccionado.estadia_id_estadia}</strong></div><div className="reservation-detail-item"><span>Fecha de check-in</span><strong>{estadia ? formatearFechaReserva(estadia.fecha_check_in) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Fecha de check-out</span><strong>{estadia ? formatearFechaReserva(estadia.fecha_check_out) : 'No registrada'}</strong></div><div className="reservation-detail-item"><span>Huésped (mediante reserva)</span><strong>{reserva ? nombreClienteReserva(reserva) : 'No registrado'}</strong></div><div className="reservation-detail-item"><span>Habitación (mediante reserva)</span><strong>{reserva ? `Hab. ${numeroHabitacionReserva(reserva)}` : 'No registrada'}</strong></div></article></div><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setPagoSeleccionado(null)}>Cerrar</button><button type="button" className="reservation-save-button" hidden={!puedeEditarEnModulo('Pagos')} onClick={() => { const item = pagoSeleccionado; setPagoSeleccionado(null); abrirEdicionPago(item) }}>Editar pago</button></div></section></div> })()}
           {pagoPorEliminar && <div className="reservation-modal-backdrop"><section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="payment-delete-title"><div className="reservation-confirm-icon">!</div><h2 id="payment-delete-title">¿Eliminar este pago?</h2><p>Se eliminará el pago <strong>#{pagoPorEliminar.id_pago}</strong> por <strong>{formatearMontoPago(pagoPorEliminar.monto)}</strong>.</p><div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setPagoPorEliminar(null)}>Conservar pago</button><button type="button" className="reservation-confirm-danger-button" onClick={confirmarEliminarPago}>Sí, eliminar</button></div></section></div>}
         </section>
       )
@@ -3456,7 +3584,7 @@ function App() {
           <div className="room-list reservations-list rooms-modern-list maintenance-list">
             <div className="room-list-header reservations-list-header">
               <div><h2>Listado de mantenimientos</h2><p>Administra los registros de la tabla MANTENIMIENTO.</p></div>
-              <div className="reservations-header-actions"><span className="reservations-total-pill">{mantenimientosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroMantenimiento} disabled={!habitaciones.length || !empleados.length} title={!habitaciones.length || !empleados.length ? 'Registra al menos una habitación y un empleado.' : 'Registrar mantenimiento'}>＋ Nuevo mantenimiento</button></div>
+              <div className="reservations-header-actions"><span className="reservations-total-pill">{mantenimientosFiltrados.length} resultados</span><button type="button" className="reservation-new-button" onClick={abrirRegistroMantenimiento} disabled={!habitacionesVisibles.length || !empleadosDelHotel.length} title={!habitacionesVisibles.length || !empleadosDelHotel.length ? 'Registra al menos una habitación y un empleado.' : 'Registrar mantenimiento'}>＋ Nuevo mantenimiento</button></div>
             </div>
             <DynamicListFilterPanel title="Mantenimiento" listKey="mantenimientos" searchValue={busquedaMantenimiento} searchPlaceholder="Buscar por ID, fecha, tipo, costo, habitación o empleado..." attributes={atributosFiltroMantenimiento} activeFilters={obtenerFiltrosActivosLista('mantenimientos')} onSearchChange={valor => actualizarFiltroLista('mantenimientos', setBusquedaMantenimiento, valor)} onAddFilter={agregarFiltroAvanzadoLista} onRemoveFilter={quitarFiltroAvanzadoLista} onClearFilters={lista => { setBusquedaMantenimiento(''); limpiarFiltrosAvanzadosLista(lista) }} />
 <div className="table-container reservations-table-container rooms-modern-table-container">
@@ -3465,7 +3593,7 @@ function App() {
                 <tbody>
                   {mantenimientosPagina.rows.map(mantenimiento => <tr key={mantenimiento.id_mantenimiento}>
                     <td>{mantenimiento.id_mantenimiento}</td><td>{formatearFechaReserva(mantenimiento.fecha_inicio)}</td><td><strong>{mantenimiento.tipo}</strong></td><td>S/ {Number(mantenimiento.costo).toFixed(2)}</td>
-                    <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setMantenimientoSeleccionado(mantenimiento)}>Ver detalle</button><button type="button" className="reservation-edit-button" onClick={() => abrirEdicionMantenimiento(mantenimiento)}>Editar</button><button type="button" className="reservation-cancel-record-button" onClick={() => setMantenimientoPorEliminar(mantenimiento)}>Eliminar</button></div></td>
+                    <td className="reservation-action-cell"><div className="reservation-row-actions"><button type="button" className="reservation-detail-button" onClick={() => setMantenimientoSeleccionado(mantenimiento)}>Ver detalle</button><button type="button" className="reservation-edit-button" hidden={Boolean(employeeSession)} onClick={() => abrirEdicionMantenimiento(mantenimiento)}>Editar</button><button type="button" className="reservation-cancel-record-button" hidden={!puedeEliminarEnModulo()} onClick={() => setMantenimientoPorEliminar(mantenimiento)}>Eliminar</button></div></td>
                   </tr>)}
                   {mantenimientosFiltrados.length === 0 && <tr><td colSpan="5" className="empty-message">No se encontraron mantenimientos con ese criterio.</td></tr>}
                 </tbody>
@@ -3482,8 +3610,8 @@ function App() {
                 <label className="reservation-form-field"><span>Fecha de inicio *</span><input type="date" value={formularioMantenimiento.fecha_inicio} onChange={e => setFormularioMantenimiento(actual => ({ ...actual, fecha_inicio: e.target.value }))} required /></label>
                 <label className="reservation-form-field"><span>Tipo de mantenimiento *</span><input type="text" maxLength="20" placeholder="Ej. Revisión eléctrica" value={formularioMantenimiento.tipo} onChange={e => setFormularioMantenimiento(actual => ({ ...actual, tipo: e.target.value }))} required /><small>Máximo 20 caracteres.</small></label>
                 <label className="reservation-form-field"><span>Costo (S/) *</span><input type="number" min="0" max="99999999.99" step="0.01" placeholder="Ej. 150.00" value={formularioMantenimiento.costo} onChange={e => setFormularioMantenimiento(actual => ({ ...actual, costo: e.target.value }))} required /></label>
-                <label className="reservation-form-field"><span>Habitación relacionada (FK) *</span><select value={formularioMantenimiento.habitacion_id_habitacion} onChange={e => setFormularioMantenimiento(actual => ({ ...actual, habitacion_id_habitacion: e.target.value }))} required><option value="">Selecciona una habitación</option>{habitaciones.map(habitacion => <option key={habitacion.id} value={habitacion.id}>Hab. {habitacion.numero} · ID {habitacion.id}</option>)}</select><small>La habitación debe existir en el módulo Habitaciones.</small></label>
-                <label className="reservation-form-field"><span>Empleado responsable (FK) *</span><select value={formularioMantenimiento.empleado_id_empleado} onChange={e => setFormularioMantenimiento(actual => ({ ...actual, empleado_id_empleado: e.target.value }))} required><option value="">Selecciona un empleado</option>{empleados.map(empleado => <option key={empleado.id} value={empleado.id}>{empleado.nombre} {empleado.apellido} · ID {empleado.id}</option>)}</select><small>El empleado debe existir en el módulo Empleados.</small></label>
+                <label className="reservation-form-field"><span>Habitación relacionada (FK) *</span><select value={formularioMantenimiento.habitacion_id_habitacion} onChange={e => setFormularioMantenimiento(actual => ({ ...actual, habitacion_id_habitacion: e.target.value }))} required><option value="">Selecciona una habitación</option>{habitacionesVisibles.map(habitacion => <option key={habitacion.id} value={habitacion.id}>Hab. {habitacion.numero} · ID {habitacion.id}</option>)}</select><small>La habitación debe existir en el módulo Habitaciones.</small></label>
+                <label className="reservation-form-field"><span>Empleado responsable (FK) *</span><select value={formularioMantenimiento.empleado_id_empleado} onChange={e => setFormularioMantenimiento(actual => ({ ...actual, empleado_id_empleado: e.target.value }))} required><option value="">Selecciona un empleado</option>{empleadosDelHotel.map(empleado => <option key={empleado.id} value={empleado.id}>{empleado.nombre} {empleado.apellido} · ID {empleado.id}</option>)}</select><small>El empleado debe existir en el módulo Empleados.</small></label>
               </div>{errorMantenimiento && <p className="reservation-form-error" role="alert">{errorMantenimiento}</p>}<div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setMostrarModalMantenimiento(false)}>Cancelar</button><button type="submit" className="reservation-save-button">{mantenimientoEnEdicion ? 'Guardar cambios' : 'Registrar mantenimiento'}</button></div></form>
             </section>
           </div>}
@@ -3522,13 +3650,13 @@ function App() {
     // ========================================
 
     if (seccionActiva === 'Hoteles') {
-      const habitacionesAsociadas = habitaciones.filter(habitacion =>
+      const habitacionesAsociadas = habitacionesVisibles.filter(habitacion =>
         hoteles.some(hotel => Number(hotel.id_hotel) === Number(habitacion.hotel_id_hotel))
       ).length
       const empleadosAsociados = empleados.filter(empleado =>
         hoteles.some(hotel => Number(hotel.id_hotel) === Number(empleado.hotel_id_hotel))
       ).length
-      const serviciosAsociados = servicios.filter(servicio =>
+      const serviciosAsociados = serviciosVisibles.filter(servicio =>
         hoteles.some(hotel => Number(hotel.id_hotel) === Number(servicio.hotel_id_hotel))
       ).length
 
@@ -3681,7 +3809,7 @@ function App() {
 
           {hotelPorEliminar && (() => {
             const dependencias = obtenerDependenciasHotel(hotelPorEliminar)
-            const tieneDependencias = dependencias.habitaciones.length > 0 || dependencias.empleados.length > 0 || dependencias.servicios.length > 0
+            const tieneDependencias = dependencias.habitacionesVisibles.length > 0 || dependencias.empleadosDelHotel.length > 0 || dependencias.serviciosVisibles.length > 0
             return <div className="reservation-modal-backdrop" onMouseDown={evento => { if (evento.target === evento.currentTarget) setHotelPorEliminar(null) }}>
               <section className="reservation-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="hotel-delete-title">
                 <div className="reservation-confirm-icon">!</div>
@@ -3690,9 +3818,9 @@ function App() {
                   ? <>
                     <p>No se puede eliminar <strong>{hotelPorEliminar.nombre}</strong> porque tiene registros relacionados.</p>
                     <div className="reservation-confirm-notice">
-                      {dependencias.habitaciones.length > 0 && <div><strong>{dependencias.habitaciones.length}</strong> habitación(es) asociada(s).</div>}
-                      {dependencias.empleados.length > 0 && <div><strong>{dependencias.empleados.length}</strong> empleado(s) asociado(s).</div>}
-                      {dependencias.servicios.length > 0 && <div><strong>{dependencias.servicios.length}</strong> servicio(s) asociado(s).</div>}
+                      {dependencias.habitacionesVisibles.length > 0 && <div><strong>{dependencias.habitacionesVisibles.length}</strong> habitación(es) asociada(s).</div>}
+                      {dependencias.empleadosDelHotel.length > 0 && <div><strong>{dependencias.empleadosDelHotel.length}</strong> empleado(s) asociado(s).</div>}
+                      {dependencias.serviciosVisibles.length > 0 && <div><strong>{dependencias.serviciosVisibles.length}</strong> servicio(s) asociado(s).</div>}
                     </div>
                     <div className="reservation-modal-footer"><button type="button" className="reservation-cancel-button" onClick={() => setHotelPorEliminar(null)}>Cerrar</button></div>
                   </>
@@ -3714,11 +3842,11 @@ function App() {
 
     if (seccionActiva === 'Dashboard') {
       const totalIngresos = pagos.reduce((total, pago) => total + pago.monto, 0)
-      const disponibles = habitaciones.filter(h => h.estado === 'DISPONIBLE').length
-      const ocupadas = habitaciones.filter(h => h.estado === 'OCUPADA').length
-      const enMantenimiento = habitaciones.filter(h => h.estado === 'MANTENIMIENTO').length
-      const porcentajeOcupacion = habitaciones.length
-        ? Math.round((ocupadas / habitaciones.length) * 100)
+      const disponibles = habitacionesVisibles.filter(h => h.estado === 'DISPONIBLE').length
+      const ocupadas = habitacionesVisibles.filter(h => h.estado === 'OCUPADA').length
+      const enMantenimiento = habitacionesVisibles.filter(h => h.estado === 'MANTENIMIENTO').length
+      const porcentajeOcupacion = habitacionesVisibles.length
+        ? Math.round((ocupadas / habitacionesVisibles.length) * 100)
         : 0
       const hoy = new Date()
       const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
@@ -3759,7 +3887,7 @@ function App() {
             <article className="stat-card stat-blue">
               <div className="stat-top"><span className="stat-icon">▣</span><span className="stat-caption">CAPACIDAD</span></div>
               <p>Total de habitaciones</p>
-              <h2>{habitaciones.length}</h2>
+              <h2>{habitacionesVisibles.length}</h2>
               <span className="stat-foot">Habitaciones registradas</span>
             </article>
             <article className="stat-card stat-teal">
@@ -3798,7 +3926,7 @@ function App() {
                   <div><span className="legend-dot maintenance-dot"/><span>Mantenimiento</span><strong>{enMantenimiento}</strong></div>
                 </div>
               </div>
-              <div className="occupancy-note">De {habitaciones.length} habitaciones registradas en total.</div>
+              <div className="occupancy-note">De {habitacionesVisibles.length} habitaciones registradas en total.</div>
             </article>
 
             <article className="dashboard-panel arrivals-panel">
@@ -3827,7 +3955,7 @@ function App() {
                 <span className="panel-icon alert-icon">!</span>
               </div>
               {enMantenimiento > 0 ? (
-                habitaciones.filter(h => h.estado === 'MANTENIMIENTO').map(h => (
+                habitacionesVisibles.filter(h => h.estado === 'MANTENIMIENTO').map(h => (
                   <div className="alert-item" key={h.id}>
                     <span className="alert-symbol">!</span>
                     <div><strong>Habitación {h.numero}</strong><p>Se encuentra en mantenimiento · Piso {h.piso}</p></div>
@@ -3878,8 +4006,8 @@ function App() {
 
   return (
     <>
-      <WelcomeScreen empleados={empleados} cargos={cargos} hoteles={hoteles} isAdminAuthenticated={adminAuthenticated} onAdminAuthenticated={() => setAdminAuthenticated(true)} />
-      <div className="app welcome-covered-app" aria-hidden={!adminAuthenticated} inert={!adminAuthenticated}>
+      <WelcomeScreen empleados={empleados} cargos={cargos} hoteles={hoteles} isAdminAuthenticated={adminAuthenticated} employeeSession={employeeSession} onAdminAuthenticated={() => setAdminAuthenticated(true)} onEmployeeContinue={session => { setEmployeeSession(session); setSeccionActiva('Reservas') }} />
+      <div className="app welcome-covered-app" aria-hidden={!adminAuthenticated && !employeeSession} inert={!adminAuthenticated && !employeeSession}>
 
       <aside className="sidebar">
 
@@ -3894,7 +4022,7 @@ function App() {
             <button
               key={opcion}
               className={seccionActiva === opcion ? 'active' : ''}
-              onClick={() => setSeccionActiva(opcion)}
+              onClick={() => { if (puedeVerModulo(opcion)) setSeccionActiva(opcion) }}
             >
               {opcion}
             </button>
@@ -3914,7 +4042,7 @@ function App() {
           <div>
             <h2>
               {seccionActiva === 'Dashboard'
-                ? 'Panel administrativo'
+                ? (employeeSession ? 'Entorno operativo' : 'Panel administrativo')
                 : seccionActiva}
             </h2>
 
@@ -3922,8 +4050,8 @@ function App() {
           </div>
 
           <div className="user">
-            <div className="avatar">A</div>
-            <span>Administrador</span>
+            <div className="avatar">{employeeSession ? employeeSession.employee.nombre.charAt(0).toUpperCase() : 'A'}</div>
+      <span>{employeeSession ? `${employeeSession.employee.nombre} ${employeeSession.employee.apellido} · ${employeeSession.hotel.nombre}` : 'Administrador'}</span>
           </div>
 
         </header>
