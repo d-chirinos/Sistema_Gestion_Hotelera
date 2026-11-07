@@ -54,6 +54,7 @@ test('administrador navega los datos autorizados y módulos pendientes sin escri
   await expect(page.getByRole('heading', { name: 'Próximamente' })).toBeVisible()
   await expect(page.getByRole('button', { name: /Nueva|Editar|Eliminar|Registrar/i })).toHaveCount(0)
   expect(solicitudes.filter(x => x.path.startsWith('/rest/')).every(x => x.path.startsWith('/rest/v1/rpc/') && x.method === 'POST')).toBe(true)
+  expect(solicitudes.some(x => x.path.endsWith('/listar_reservas_mi_hotel'))).toBe(false)
   const recursos = solicitudes.filter(x => x.path.endsWith('/consultar_mi_hotel')).map(x => JSON.parse(x.body))
   expect(recursos.map(x => x.p_recurso).sort()).toEqual(['habitacion', 'hotel', 'servicio', 'tarifa_habitacion', 'tipo_habitacion'].sort())
   expect(recursos.every(x => Object.keys(x).length === 1)).toBe(true)

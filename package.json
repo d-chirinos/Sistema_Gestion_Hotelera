@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:reservas": "playwright test --config playwright.reservas.config.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

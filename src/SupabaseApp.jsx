@@ -3,6 +3,8 @@ import { supabase } from './supabase/cliente.js'
 import { crearServicio } from './supabase/servicio.js'
 import { crearControlSesion } from './supabase/sesion.js'
 import { SECCIONES, resumenHabitaciones } from './supabase/vista.js'
+import { crearConsultaReservas, crearCotizadorReservas } from './supabase/reservas.js'
+import Reservas from './Reservas.jsx'
 import './App.css'
 import './SupabaseApp.css'
 
@@ -70,16 +72,21 @@ function DatosHotel({ estado, onSalir }) {
   const [subseccion, setSubseccion] = useState('habitacion')
   const [menuAbierto, setMenuAbierto] = useState(false)
   const { datos, cuenta } = estado
+  const reservasActivas = import.meta.env.VITE_RESERVAS_LECTURA === 'true'
+  const consultarReservas = useMemo(() => crearConsultaReservas(supabase), [])
+  const cotizarReserva = useMemo(() => crearCotizadorReservas(supabase), [])
+  const secciones = SECCIONES.map(item => item.id === 'reservas' ? { ...item, disponible: reservasActivas } : item)
   const hotel = datos.hotel[0]
-  const seleccion = SECCIONES.find(item => item.id === seccion)
+  const seleccion = secciones.find(item => item.id === seccion)
   function navegar(id) { setSeccion(id); setMenuAbierto(false); if (id === 'habitacion') setSubseccion('habitacion') }
-  return <div className="app real-app"><aside className={`sidebar real-sidebar${menuAbierto ? ' is-open' : ''}`} id="menu-principal"><h2 className="logo">Hotel<span>Manager</span></h2><p className="menu-title">MENÚ PRINCIPAL</p><nav aria-label="Menú principal">{SECCIONES.map(item => <button key={item.id} type="button" className={seccion === item.id ? 'active' : ''} aria-current={seccion === item.id ? 'page' : undefined} onClick={() => navegar(item.id)}>{item.titulo}{!item.disponible && <span className="real-pending-label">Pendiente</span>}</button>)}</nav><div className="sidebar-footer">Sistema de gestión hotelera<br /><span>Solo lectura</span></div></aside>
+  return <div className="app real-app"><aside className={`sidebar real-sidebar${menuAbierto ? ' is-open' : ''}`} id="menu-principal"><h2 className="logo">Hotel<span>Manager</span></h2><p className="menu-title">MENÚ PRINCIPAL</p><nav aria-label="Menú principal">{secciones.map(item => <button key={item.id} type="button" className={seccion === item.id ? 'active' : ''} aria-current={seccion === item.id ? 'page' : undefined} onClick={() => navegar(item.id)}>{item.titulo}{!item.disponible && <span className="real-pending-label">Pendiente</span>}</button>)}</nav><div className="sidebar-footer">Sistema de gestión hotelera<br /><span>Solo lectura</span></div></aside>
     <main className="main-content"><header className="topbar real-topbar"><div className="real-topbar-title"><button type="button" className="real-menu-toggle" aria-controls="menu-principal" aria-expanded={menuAbierto} onClick={() => setMenuAbierto(!menuAbierto)}>☰ <span>Menú</span></button><div><h2>{seleccion.titulo}</h2><p>Panel de gestión hotelera</p></div></div><div className="real-topbar-actions"><div className="user"><div className="avatar">A</div><span>Administrador <small>Hotel {cuenta.hotel_id}</small></span></div><button type="button" className="real-logout" onClick={onSalir}>Cerrar sesión</button></div></header>
       <div className="real-source">Conectado a Supabase · {hotel.nombre} · Solo lectura</div>
       {seccion === 'dashboard' && <section className="dashboard real-dashboard"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">PANEL ADMINISTRATIVO</span><h1>Bienvenido a {hotel.nombre}</h1><p>Consulta la información de tu hotel desde un solo lugar.</p></div><div className="reservations-heading-note"><span className="reservations-note-icon">⌂</span><div><strong>Hotel {cuenta.hotel_id}</strong><span>Información disponible</span></div></div></div><div className="dashboard-section-title"><div><h2>Resumen de habitaciones</h2><p>Estado actual de las habitaciones registradas.</p></div></div><Tarjetas habitaciones={datos.habitacion} /><InfoHotel hotel={hotel} /></section>}
       {seccion === 'hotel' && <section className="rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Mi hotel</h1><p>Información general de tu establecimiento.</p></div></div><InfoHotel hotel={hotel} /></section>}
       {seccion === 'habitacion' && <section className="rooms-section rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Gestión de habitaciones</h1><p>Consulta las habitaciones y tarifas de {hotel.nombre}.</p></div><div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{datos.habitacion.length} registros</strong><span>Habitaciones del hotel</span></div></div></div><div className="rooms-subnav" role="tablist" aria-label="Secciones de habitaciones">{[['habitacion', 'Habitaciones'], ['tipo_habitacion', 'Tipos de habitación'], ['tarifa_habitacion', 'Tarifas']].map(([id, label]) => <button type="button" role="tab" aria-selected={subseccion === id} className={subseccion === id ? 'active' : ''} onClick={() => setSubseccion(id)} key={id}>{label}</button>)}</div>{subseccion === 'habitacion' && <Tarjetas habitaciones={datos.habitacion} />}<TablaLectura key={subseccion} recurso={subseccion} datos={datos} /></section>}
       {seccion === 'servicio' && <section className="rooms-section rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Servicios</h1><p>Consulta los servicios disponibles en {hotel.nombre}.</p></div></div><TablaLectura recurso="servicio" datos={datos} /></section>}
+      {seccion === 'reservas' && reservasActivas && <Reservas consultar={consultarReservas} cotizar={cotizarReserva} habitaciones={datos.habitacion} />}
       {!seleccion.disponible && <section className="rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">MÓDULO PENDIENTE</span><h1>{seleccion.titulo}</h1><p>Este módulo estará disponible cuando se implementen sus consultas y permisos.</p></div></div><div className="dashboard-panel real-pending"><span aria-hidden="true">◷</span><h2>Próximamente</h2><p>Esta sección aún no tiene datos ni operaciones habilitadas.</p></div></section>}
     </main>
   </div>
