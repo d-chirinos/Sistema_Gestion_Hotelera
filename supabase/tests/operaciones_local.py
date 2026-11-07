@@ -43,7 +43,7 @@ def snapshot():
     return [json.loads(sql(f"select coalesce(jsonb_agg(x order by x::text),'[]'::jsonb) from (select to_jsonb(t) x from public.{t} t) z")[0]) for t in tables]
 before = snapshot()
 assert sum(map(len, before[:-1])) == 106 and len(before[-1]) == 4
-for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql','supabase/migrations/20261107070000_altas_administrativas.sql'):
+for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql','supabase/migrations/20261107070000_altas_administrativas.sql','supabase/migrations/20261107080000_indicadores_y_gestion.sql'):
     sql(Path(f).read_text())
 assert snapshot() == before, 'La migración cambió registros existentes'
 assert sql("select has_function_privilege('anon','public.consultar_operaciones_hotel(text)','EXECUTE'), has_function_privilege('authenticated','public.consultar_operaciones_hotel(text)','EXECUTE'), has_table_privilege('authenticated','public.pago','INSERT')")[0] == 'f|t|f'
@@ -168,6 +168,42 @@ sql("""begin; set local role authenticated; select set_config('request.jwt.claim
 sql("""begin; insert into public.tipo_habitacion(id_tipo,nombre,capacidad) values(99001,'Tipo local de prueba',1);
 insert into public.tarifa_habitacion(hotel_id_hotel,tipo_habitacion_id_tipo,precio_noche) values(2,99001,10);
 set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_habitacion_hotel('Prueba',99001,1); rollback;""",False)
+# Indicadores y saldos se limitan al hotel y no dan acceso a identidades de otros hoteles.
+for firma in ('public.resumen_operativo_mi_hotel()', 'public.saldo_informativo_reserva(bigint)', 'public.registrar_empleado_hotel(text,text,text,bigint,date)', 'public.actualizar_empleado_sin_historial(bigint,text,text,text,bigint,date,text,text,text,bigint,date)', 'public.actualizar_habitacion_sin_historial(bigint,text,bigint,integer,text,bigint,integer)'):
+    assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0]=='f|t'
+for user in ids[1:4]:
+    for c in ('select * from public.resumen_operativo_mi_hotel()', 'select * from public.saldo_informativo_reserva(1)', "select * from public.registrar_empleado_hotel('Persona','Prueba','DOC-LOCAL',1,'2026-01-01')", "select * from public.actualizar_empleado_sin_historial(5,'Nombre','Apellido','DOC',1,'2026-01-01','Nuevo','Apellido','DOC',1,'2026-01-01')", "select * from public.actualizar_habitacion_sin_historial(1,'D-001',1,1,'D-002',1,1)"):
+        sesion(user,c,False)
+sesion(ids[0], 'select * from public.saldo_informativo_reserva(3)', False)
+out,_=sesion(ids[0], 'select reservas_confirmadas+reservas_completadas+reservas_canceladas from public.resumen_operativo_mi_hotel()')
+assert '\n9\n' in out
+out,_=sesion(ids[4], 'select reservas_confirmadas+reservas_completadas+reservas_canceladas from public.resumen_operativo_mi_hotel()')
+assert '\n9\n' in out
+out,_=sesion(ids[0], "select completo, saldo is not null from public.saldo_informativo_reserva(1)")
+assert '\nt|t\n' in out
+out,_=sesion(ids[0], 'select saldo is null from public.saldo_informativo_reserva(12)')
+assert '\nt\n' in out
+# Una referencia histórica a un servicio de otro hotel no se convierte en saldo aparentemente completo.
+sql("""begin; update public.consumo_servicio set servicio_id_servicio=5 where id_consumo=1; set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); do $$ begin if not exists(select 1 from public.saldo_informativo_reserva(1) where not completo and saldo is null and consumos is null) then raise exception 'Saldo inconsistente'; end if; end $$; rollback;""")
+out,_=sesion(ids[0], "select repetido from public.registrar_empleado_hotel('Nombre local','Apellido local','DOC-PRUEBA',1,'2026-01-01'); select repetido from public.registrar_empleado_hotel('Nombre local','Apellido local','doc-prueba',1,'2026-01-01')")
+assert '\nf\n' in out and '\nt\n' in out
+sesion(ids[0], "select * from public.registrar_empleado_hotel('Nombre local','Apellido local','DOC-PRUEBA',1,'2026-01-01'); select * from public.registrar_empleado_hotel('Distinto','Apellido local','DOC-PRUEBA',1,'2026-01-01')", False)
+sesion(ids[0], "select * from public.registrar_empleado_hotel('Nombre local','Apellido local','DOC-PRUEBA',999999,'2026-01-01')", False)
+sesion(ids[0], "select * from public.registrar_empleado_hotel('Nombre local','Apellido local','DOC-PRUEBA',1,'2026-01-01'); select 1/0", False)
+# Dos documentos históricos iguales se mantienen intactos y exigen conciliación.
+_,err_duplicado=sql("""begin; insert into public.empleado(hotel_id_hotel,cargo_id_cargo,nombre,apellido,documento,fecha_ingreso) values(1,1,'Uno','Prueba','DOC-DUP','2026-01-01'),(1,1,'Dos','Prueba','DOC-DUP','2026-01-01'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.registrar_empleado_hotel('Uno','Prueba','DOC-DUP',1,'2026-01-01'); rollback;""",False)
+assert 'conciliación' in err_duplicado
+# Edición de empleado requiere versión anterior, documento y ausencia de cuenta o historial.
+sesion(ids[0], "select * from public.actualizar_empleado_sin_historial(5,'Nombre','Apellido','DOC',1,'2026-01-01','Nuevo','Apellido','DOC',1,'2026-01-01')",False)
+sql("""begin; insert into public.empleado(id_empleado,hotel_id_hotel,cargo_id_cargo,nombre,apellido,documento,fecha_ingreso) values(99012,1,1,'Nombre','Apellido','DOC-ANTES','2026-01-01'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.actualizar_empleado_sin_historial(99012,'Nombre','Apellido','DOC-ANTES',1,'2026-01-01','Nuevo','Apellido','DOC-NUEVO',1,'2026-01-02'); reset role; do $$begin if not exists(select 1 from public.empleado where id_empleado=99012 and nombre='Nuevo' and documento='DOC-NUEVO') then raise exception 'Empleado inconsistente'; end if; end$$; rollback;""")
+_,err_cuenta=sql("""begin; insert into public.empleado(id_empleado,hotel_id_hotel,cargo_id_cargo,nombre,apellido,documento,fecha_ingreso) values(99013,1,1,'Nombre','Apellido','DOC-CUENTA','2026-01-01'); insert into public.cuenta_empleado values('"""+ids[3]+"""',99013,'RECEPCIONISTA',true,now()); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.actualizar_empleado_sin_historial(99013,'Nombre','Apellido','DOC-CUENTA',1,'2026-01-01','Nuevo','Apellido','DOC-NUEVO',1,'2026-01-02'); rollback;""",False)
+assert 'cuenta o historial' in err_cuenta
+_,err_autor=sql("""begin; insert into public.empleado(id_empleado,hotel_id_hotel,cargo_id_cargo,nombre,apellido,documento,fecha_ingreso) values(99014,1,1,'Nombre','Apellido','DOC-AUTOR','2026-01-01'); insert into public.mantenimiento(habitacion_id_habitacion,empleado_id_empleado,fecha_inicio,tipo) values(1,99014,current_date,'Prueba'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.actualizar_empleado_sin_historial(99014,'Nombre','Apellido','DOC-AUTOR',1,'2026-01-01','Nuevo','Apellido','DOC-NUEVO',1,'2026-01-02'); rollback;""",False)
+assert 'cuenta o historial' in err_autor
+# Solo una habitación sin referencias históricas puede modificarse.
+sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,piso,estado) values(99010,1,1,'TEST-99010',1,'DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.actualizar_habitacion_sin_historial(99010,'TEST-99010',1,1,'TEST-NUEVO',1,2); reset role; do $$begin if not exists(select 1 from public.habitacion where id_habitacion=99010 and numero='TEST-NUEVO' and piso=2) then raise exception 'Actualización inconsistente'; end if; end$$; rollback;""")
+_,err_hist=sesion(ids[0], "select * from public.actualizar_habitacion_sin_historial(1,'D-001',1,1,'TEST-NUEVO',1,2)",False)
+assert 'historial requiere revisión' in err_hist
 assert snapshot() == before, 'Las pruebas transaccionales modificaron datos'
 # Dos clientes concurrentes, misma clave y solicitud. Ambas respuestas deben corresponder al mismo pago.
 cmd = f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select id_pago,repetido from public.registrar_pago_reserva(7,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000003'); select pg_sleep(1); commit;"
@@ -221,4 +257,22 @@ comando=f"begin; set local role authenticated; select set_config('request.jwt.cl
 a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
 assert sorted(resultados)==[0,0], resultados
 assert sql("select count(*) from public.habitacion where hotel_id_hotel=1 and lower(btrim(numero))='h-concurrente'")[0]=='1'
-print('OK: migraciones, aislamiento, roles, altas, pagos, estadías, consumos, mantenimiento, rollback y concurrencia')
+# Las altas de empleados con el mismo documento se serializan en el propio hotel.
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.registrar_empleado_hotel('Nombre local','Apellido local','DOC-CONCURRENTE',1,'2026-01-01'); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,0], resultados
+assert sql("select count(*) from public.empleado where hotel_id_hotel=1 and lower(btrim(documento))='doc-concurrente'")[0]=='1'
+# Dos ediciones con la misma versión anterior no se sobrescriben mutuamente.
+sql("insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,piso,estado) values(99011,1,1,'TEST-99011',1,'DISPONIBLE')")
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.actualizar_habitacion_sin_historial(99011,'TEST-99011',1,1,'TEST-EDITADA',1,2); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,3], resultados
+# Dos ediciones del mismo empleado no sobrescriben una versión anterior.
+sql("insert into public.empleado(id_empleado,hotel_id_hotel,cargo_id_cargo,nombre,apellido,documento,fecha_ingreso) values(99015,1,1,'Nombre','Apellido','DOC-ORIGINAL','2026-01-01')")
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.actualizar_empleado_sin_historial(99015,'Nombre','Apellido','DOC-ORIGINAL',1,'2026-01-01','Nuevo','Apellido','DOC-NUEVO',1,'2026-01-02'); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,3], resultados
+print('OK: migraciones, aislamiento, roles, indicadores, saldos, gestión, rollback y concurrencia')

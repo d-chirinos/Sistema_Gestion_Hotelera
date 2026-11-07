@@ -73,3 +73,5 @@ Los reintentos protegidos dependen también de que el navegador conserve sus int
 ## Límites para explicar honestamente
 
 El alta de clientes y de reservas está bloqueada: el prototipo puede revelar existencia de clientes y su auditoría es reversible mediante rollback. La cotización y la lista de reservas son consultas; no crean reservas. No hay pagos bancarios, devoluciones ni administración completa de cuentas. Las funcionalidades nuevas requieren que su migración esté instalada y que el proyecto y la bandera de interfaz sean los correctos. Ver el recorrido y restricciones en `RECORRIDO_DEMOSTRACION.md` y las guías de operaciones.
+
+La migración 080, pendiente de despliegue según el historial del proyecto, añade indicadores y un saldo informativo, así como alta y edición de empleados sin cuenta ni historial, y edición de habitaciones sin historial. Consulte `INDICADORES_GESTION.md` para alcance y precauciones.
