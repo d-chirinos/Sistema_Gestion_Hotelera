@@ -1,0 +1,67 @@
+import { test, expect } from '@playwright/test'
+
+test('recupera un pago sin cambiar su UUID tras una respuesta perdida y expone formularios protegidos', async ({ page }) => {
+  const pagos = [], llamadas = []
+  const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'content-type': 'application/json' }
+  const user = { id: 'test-user', email: 'test@example.invalid', aud: 'authenticated' }
+  await page.route('https://demo.invalid/**', async route => {
+    const req = route.request(), url = new URL(req.url())
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    llamadas.push(url.pathname)
+    if (url.pathname === '/auth/v1/token') return route.fulfill({ headers, body: JSON.stringify({ access_token: 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.test', refresh_token: 'prueba-local', expires_in: 3600, token_type: 'bearer', user }) })
+    if (url.pathname === '/auth/v1/user') return route.fulfill({ headers, body: JSON.stringify(user) })
+    if (url.pathname.endsWith('/mi_cuenta_hotelmanager')) return route.fulfill({ headers, body: JSON.stringify([{ empleado_id: 1, hotel_id: 1, rol_sistema: 'ADMINISTRADOR' }]) })
+    if (url.pathname.endsWith('/consultar_mi_hotel')) {
+      const data = { hotel: [{ id_hotel: 1, nombre: 'Hotel de prueba' }], habitacion: [{ id_habitacion: 1, hotel_id_hotel: 1, numero: '101' }], tarifa_habitacion: [{ id_tarifa: 1, hotel_id_hotel: 1, tipo_habitacion_id_tipo: 1, precio_noche: 100 }], servicio: [{ id_servicio: 1, hotel_id_hotel: 1, nombre: 'Desayuno', precio: 10 }], tipo_habitacion: [{ id_tipo: 1, nombre: 'Simple' }] }
+      return route.fulfill({ headers, body: JSON.stringify(data[req.postDataJSON().p_recurso]) })
+    }
+    if (url.pathname.endsWith('/consultar_operaciones_hotel')) return route.fulfill({ headers, body: '[]' })
+    if (url.pathname.endsWith('/registrar_checkin')) return route.fulfill({ headers, body: JSON.stringify([{ id_estadia: 3, fecha_hora_checkin: '2026-11-07T12:00:00Z' }]) })
+    if (url.pathname.endsWith('/registrar_checkout')) return route.fulfill({ headers, body: JSON.stringify([{ id_estadia: 3, fecha_hora_checkout: '2026-11-07T13:00:00Z' }]) })
+    if (url.pathname.endsWith('/actualizar_precio_servicio')) return route.fulfill({ headers, body: JSON.stringify([{ id_servicio: 1, precio: 11 }]) })
+    if (url.pathname.endsWith('/registrar_pago_reserva')) {
+      pagos.push(req.postDataJSON())
+      if (pagos.length === 1) return route.abort('failed')
+      return route.fulfill({ headers, body: JSON.stringify([{ id_pago: 10, repetido: true }]) })
+    }
+    return route.fulfill({ status: 404, headers, body: '{}' })
+  })
+  page.on('dialog', dialog => dialog.accept())
+  await page.goto('./')
+  await page.getByLabel('Correo electrónico').fill('test@example.invalid')
+  await page.getByLabel('Contraseña').fill('prueba-local')
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+  const menu = page.getByRole('navigation', { name: 'Menú principal' })
+  await menu.getByRole('button', { name: 'Pagos', exact: true }).click()
+  await page.getByLabel('Reserva', { exact: true }).fill('1')
+  await page.getByLabel('Importe', { exact: true }).fill('10.50')
+  await page.getByLabel('Método de pago').fill('Efectivo')
+  await page.getByRole('button', { name: 'Registrar pago', exact: true }).click()
+  await expect(page.getByText(/Pago pendiente de confirmar/)).toBeVisible()
+  await page.reload()
+  await menu.getByRole('button', { name: 'Pagos', exact: true }).click()
+  await expect(page.getByText(/Pago pendiente de confirmar/)).toBeVisible()
+  await page.getByRole('button', { name: 'Reintentar pago pendiente' }).click()
+  await expect(page.getByText('Pago 10 registrado previamente.')).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  expect(pagos).toHaveLength(2)
+  expect(pagos[0]).toEqual(pagos[1])
+  await menu.getByRole('button', { name: 'Estadías', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Registrar check-in' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Registrar check-out' })).toBeVisible()
+  await page.getByLabel('ID de reserva para check-in').fill('7')
+  await page.getByRole('button', { name: 'Registrar check-in' }).click()
+  await expect(page.getByText('Resumen de habitaciones')).toBeVisible()
+  await menu.getByRole('button', { name: 'Estadías', exact: true }).click()
+  await page.getByLabel('ID de estadía para check-out').fill('3')
+  await page.getByRole('button', { name: 'Registrar check-out' }).click()
+  await expect(page.getByText('Resumen de habitaciones')).toBeVisible()
+  await menu.getByRole('button', { name: 'Servicios', exact: true }).click()
+  await page.getByLabel('Registro').selectOption('1')
+  await page.getByLabel('Nuevo precio').fill('11')
+  await page.getByRole('button', { name: 'Guardar precio' }).click()
+  await expect(page.getByText('Resumen de habitaciones')).toBeVisible()
+  expect(llamadas.filter(x => x.includes('registrar_checkin') || x.includes('registrar_checkout') || x.includes('actualizar_precio'))).toHaveLength(3)
+})

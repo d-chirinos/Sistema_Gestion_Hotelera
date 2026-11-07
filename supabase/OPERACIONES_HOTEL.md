@@ -1,3 +1,7 @@
+# Estado actualizado
+
+Para la nueva implementación de escrituras y su orden de revisión, consulta [ESCRITURAS_SEGURAS.md](ESCRITURAS_SEGURAS.md). La información histórica sobre el prototipo financiero que aparece a continuación describe la etapa anterior; la migración 040 y la interfaz están ahora preparadas en la rama.
+
 # Operaciones del hotel: avance local, pendiente de despliegue
 
 La migración nueva de lectura y el SQL futuro de escritura son independientes de las tres migraciones ya aplicadas. No modifican datos al instalarse. Deben revisarse y probarse en un proyecto de ensayo antes de autorizar su aplicación. Las funciones son `SECURITY DEFINER`, usan `search_path = pg_catalog`, invocan `auth.uid()`, verifican la cuenta activa ADMINISTRADOR y obtienen el hotel de su empleado. Solo `authenticated` recibe `EXECUTE`; `anon` y `PUBLIC` no lo reciben. No se conceden accesos directos a las tablas.

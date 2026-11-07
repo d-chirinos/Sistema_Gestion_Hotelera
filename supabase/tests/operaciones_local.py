@@ -43,12 +43,14 @@ def snapshot():
     return [json.loads(sql(f"select coalesce(jsonb_agg(x order by x::text),'[]'::jsonb) from (select to_jsonb(t) x from public.{t} t) z")[0]) for t in tables]
 before = snapshot()
 assert sum(map(len, before[:-1])) == 106 and len(before[-1]) == 4
-for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/futuro/20261107040000_pagos_y_precios.sql'):
+for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql'):
     sql(Path(f).read_text())
 assert snapshot() == before, 'La migración cambió registros existentes'
 assert sql("select has_function_privilege('anon','public.consultar_operaciones_hotel(text)','EXECUTE'), has_function_privilege('authenticated','public.consultar_operaciones_hotel(text)','EXECUTE'), has_table_privilege('authenticated','public.pago','INSERT')")[0] == 'f|t|f'
+for firma in ('public.registrar_pago_reserva(bigint,numeric,text,uuid)', 'public.actualizar_tarifa_hotel(bigint,numeric,numeric)', 'public.actualizar_precio_servicio(bigint,numeric,numeric)', 'public.registrar_checkin(bigint)', 'public.registrar_checkout(bigint)'):
+    assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0] == 'f|t'
 for user in ids[1:4]:
-    for command in ("select * from public.consultar_operaciones_hotel('pagos')", "select * from public.registrar_pago_reserva(1,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000001')", "select * from public.actualizar_tarifa_hotel(1,100,101)"):
+    for command in ("select * from public.consultar_operaciones_hotel('pagos')", "select * from public.registrar_pago_reserva(1,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000001')", "select * from public.actualizar_tarifa_hotel(1,100,101)", "select * from public.registrar_checkin(7)", "select * from public.registrar_checkout(5)"):
         sesion(user, command, False)
 sql("set role anon; select * from public.consultar_operaciones_hotel('pagos')", False)
 sesion(ids[0], 'select * from public.pago', False)
@@ -84,8 +86,32 @@ sesion(ids[0], "select * from public.actualizar_tarifa_hotel(1,100,101)")
 sesion(ids[0], "select * from public.actualizar_precio_servicio(1,0,1)")
 # Un check-in histórico sin instante requiere conciliación; toda la transacción se revierte.
 sql("begin; update public.estadia set fecha_hora_checkin=null where reserva_id_reserva=1; set local role authenticated; select set_config('request.jwt.claim.sub','" + ids[0] + "',true); select * from public.registrar_pago_reserva(1,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000004'); rollback", False)
+# Fechas históricas contradictorias no se reclasifican automáticamente.
+_, error_futuro = sql("begin; update public.estadia set fecha_hora_checkin=clock_timestamp()+interval '1 day' where reserva_id_reserva=5; set local role authenticated; select set_config('request.jwt.claim.sub','" + ids[0] + "',true); select * from public.registrar_pago_reserva(5,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000006'); rollback", False)
+assert 'requiere conciliación' in error_futuro
 # Ni un error tras el registro deja un pago parcial.
 sesion(ids[0], "select * from public.registrar_pago_reserva(7,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000005'); select 1/0", False)
+# Ocupación completa de una reserva artificial en una única transacción que se revierte.
+sql("""begin;
+insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99001,1,1,'TEST-99001','DISPONIBLE');
+insert into public.reserva(id_reserva,cliente_id_cliente,habitacion_id_habitacion,fecha_entrada,fecha_salida,estado,total_estimado,fecha_reserva) values(99001,1,99001,(clock_timestamp() at time zone 'America/Lima')::date,(clock_timestamp() at time zone 'America/Lima')::date+1,'CONFIRMADA',100,(clock_timestamp() at time zone 'America/Lima')::date);
+set local role authenticated; select set_config('request.jwt.claim.sub','""" + ids[0] + """',true);
+select id_estadia as estadia_test from public.registrar_checkin(99001) \\gset
+reset role;
+do $$begin if (select estado from public.habitacion where id_habitacion=99001)<>'OCUPADA' or not exists(select 1 from public.estadia where reserva_id_reserva=99001 and empleado_id_empleado=1) then raise exception 'check-in inconsistente'; end if; end$$;
+set local role authenticated; select pg_sleep(0.01); select * from public.registrar_checkout(:estadia_test);
+reset role;
+do $$begin if (select estado from public.habitacion where id_habitacion=99001)<>'DISPONIBLE' or (select estado from public.reserva where id_reserva=99001)<>'COMPLETADA' or (select total_estimado from public.reserva where id_reserva=99001)<>100 then raise exception 'check-out inconsistente'; end if; end$$;
+rollback;""")
+sesion(ids[0], 'select * from public.registrar_checkin(3)', False)
+sesion(ids[0], 'select * from public.registrar_checkout(6)', False)
+sql("begin; update public.estadia set fecha_hora_checkin=null where id_estadia=5; set local role authenticated; select set_config('request.jwt.claim.sub','" + ids[0] + "',true); select * from public.registrar_checkout(5); rollback", False)
+# Un mantenimiento histórico ambiguo no se interpreta como abierto ni se modifica; se bloquea check-in.
+sql("""begin;
+insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99003,1,1,'TEST-99003','DISPONIBLE');
+insert into public.mantenimiento(id_mantenimiento,habitacion_id_habitacion,empleado_id_empleado,fecha_inicio,tipo) values(99003,99003,1,current_date,'Histórico de prueba');
+insert into public.reserva(id_reserva,cliente_id_cliente,habitacion_id_habitacion,fecha_entrada,fecha_salida,estado,total_estimado,fecha_reserva) values(99003,1,99003,(clock_timestamp() at time zone 'America/Lima')::date,(clock_timestamp() at time zone 'America/Lima')::date+1,'CONFIRMADA',100,current_date);
+set local role authenticated; select set_config('request.jwt.claim.sub','""" + ids[0] + """',true); select * from public.registrar_checkin(99003); rollback;""",False)
 assert snapshot() == before, 'Las pruebas transaccionales modificaron datos'
 # Dos clientes concurrentes, misma clave y solicitud. Ambas respuestas deben corresponder al mismo pago.
 cmd = f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select id_pago,repetido from public.registrar_pago_reserva(7,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000003'); select pg_sleep(1); commit;"
@@ -94,4 +120,21 @@ def run(): results.append(sql(cmd)[0])
 a=threading.Thread(target=run); b=threading.Thread(target=run); a.start(); time.sleep(.15); b.start(); a.join(); b.join()
 assert len(results)==2 and any('|f' in x for x in results) and any('|t' in x for x in results), results
 assert sql("select count(*) from public.pago where clave_idempotencia='aaaaaaaa-0000-4000-8000-000000000003'")[0] == '1'
-print('OK: migraciones, aislamiento por hotel, roles, no acceso directo, pagos, tarifas, reintentos y concurrencia')
+# Dos check-in simultáneos para una misma reserva nunca crean dos estadías.
+sql("insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99002,1,1,'TEST-99002','DISPONIBLE'); insert into public.reserva(id_reserva,cliente_id_cliente,habitacion_id_habitacion,fecha_entrada,fecha_salida,estado,total_estimado,fecha_reserva) values(99002,1,99002,(clock_timestamp() at time zone 'America/Lima')::date,(clock_timestamp() at time zone 'America/Lima')::date+1,'CONFIRMADA',100,(clock_timestamp() at time zone 'America/Lima')::date)")
+comando = f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.registrar_checkin(99002); select pg_sleep(0.8); commit;"
+resultados=[]
+def competir(comando):
+    p=subprocess.run(base,input=comando,text=True,capture_output=True,env=env)
+    resultados.append(p.returncode)
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,3], resultados
+assert sql("select count(*) from public.estadia where reserva_id_reserva=99002")[0]=='1'
+estadia=sql("select id_estadia from public.estadia where reserva_id_reserva=99002")[0]
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.registrar_checkout({estadia}); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,3], resultados
+assert sql("select estado from public.habitacion where id_habitacion=99002")[0]=='DISPONIBLE'
+assert sql("select estado from public.reserva where id_reserva=99002")[0]=='COMPLETADA'
+print('OK: migraciones, aislamiento por hotel, roles, pagos, tarifas, estadías, rollback y concurrencia')
