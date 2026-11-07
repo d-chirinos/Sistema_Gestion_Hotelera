@@ -1,6 +1,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
+import { codigoReserva, formatearFechaReserva, formatearMontoReserva } from './utils/formatoReserva.js'
 
 import {
   tiposHabitacionIniciales,
@@ -834,18 +835,6 @@ function App() {
     const tipo = tiposHabitacion.find(item => item.id_tipo === habitacion.tipo_habitacion_id_tipo)
     return tipo ? tipo.nombre : 'Tipo no encontrado'
   }
-
-  const codigoReserva = (id) => `RES-${String(id).padStart(3, '0')}`
-
-  // Presenta las fechas ISO (AAAA-MM-DD) sin alterar el día por zonas horarias.
-  const formatearFechaReserva = (fecha) => {
-    if (!fecha) return '—'
-    const [anio, mes, dia] = fecha.split('-')
-    return `${dia}/${mes}/${anio}`
-  }
-
-  const formatearMontoReserva = (monto) =>
-    `S/ ${Number(monto || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   const opcionesFiltroDesde = (registros, campoId, etiqueta) => registros.map(registro => ({
     valor: String(registro[campoId]),
