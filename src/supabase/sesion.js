@@ -1,3 +1,5 @@
+import { validarDatosHotel } from './vista.js'
+
 const errorSesion = error => error?.status === 401 || ['PGRST301', 'PGRST303', 'bad_jwt', 'session_not_found', 'refresh_token_not_found'].includes(error?.code)
 
 // Las solicitudes obsoletas nunca pueden restaurar datos después de un cambio de sesión.
@@ -22,7 +24,7 @@ export function crearControlSesion(servicio, publicar) {
       if (cuenta.rol_sistema !== 'ADMINISTRADOR') { emitir({ estado: 'sin-permiso', cuenta }); return }
       const datos = await servicio.recursos()
       if (cerrado || ticket !== version) return
-      if (datos.hotel.length !== 1 || String(datos.hotel[0].id_hotel) !== String(cuenta.hotel_id)) throw new Error('Hotel inconsistente')
+      if (!validarDatosHotel(datos, cuenta.hotel_id)) throw new Error('Hotel inconsistente')
       emitir({ estado: 'listo', cuenta, datos })
     } catch (error) {
       if (cerrado || ticket !== version) return

@@ -16,3 +16,9 @@ El SDK guarda la sesión en el almacenamiento local del navegador para recuperar
 ## Pruebas
 
 `npm test` incluye pruebas con servicios simulados de autenticación, vínculo, rol, consultas, errores, expiración y carrera con cierre de sesión. `npm run lint` y `npm run build` comprueban el código y la compilación. Una prueba local de navegador interceptó las solicitudes a Supabase y simuló las respuestas; no sustituye la validación en un proyecto de pruebas real autorizado.
+
+## Interfaz y pruebas de navegación
+
+La presentación reutiliza el menú lateral, cabecera, estilo de acceso, tarjetas y tablas del prototipo original, adaptados a las RPC de solo lectura. Dashboard, Mi hotel, Habitaciones (incluidos tipos y tarifas) y Servicios muestran solo la respuesta autorizada del hotel asignado. Los módulos pendientes no presentan datos ni operaciones. La pertenencia al hotel la decide la RPC en el servidor; el cliente también rechaza habitaciones, tarifas o servicios con un ID de hotel inesperado, como defensa adicional. Los tipos no contienen un ID de hotel y dependen del filtrado de la RPC.
+
+Para ejecutar las pruebas de navegador simuladas en Windows, instala Chromium de Playwright una vez con `npx playwright install chromium` y ejecuta `npm run test:e2e`. Las respuestas de Auth y de las RPC se interceptan localmente con datos ficticios y no se consulta el proyecto remoto. `npm test` incluye además pruebas unitarias del menú y validación de hotel. Los informes generados por Playwright se ignoran en Git.

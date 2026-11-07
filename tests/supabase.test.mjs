@@ -120,3 +120,11 @@ test('consulta páginas adicionales y falla de forma cerrada si una página fall
   } }) })
   await assert.rejects(fallaPagina.recursos(), e => e.status === 503)
 })
+
+test('la interfaz no recibe datos si una fila pertenece a otro hotel', async () => {
+  const s = simulador({ inicial: sesion, recursos: async () => ({ ...datos, habitacion: [{ id_habitacion: 99, hotel_id_hotel: 2 }] }) })
+  s.control.iniciar(); await tick(); await tick()
+  assert.equal(s.estados.at(-1).estado, 'error')
+  assert.equal(s.estados.at(-1).datos, undefined)
+  s.control.detener()
+})

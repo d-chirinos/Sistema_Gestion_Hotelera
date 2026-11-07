@@ -27,3 +27,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Informes de pruebas de navegador
+test-results/
+playwright-report/
