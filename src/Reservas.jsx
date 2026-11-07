@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import ReservaConocida from './ReservaConocida.jsx'
+import PrimeraReserva from './PrimeraReserva.jsx'
 
 const fecha = valor => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(valor ?? '')) return '—'
@@ -51,7 +52,7 @@ function Cotizador({ habitaciones, cotizar }) {
   </div>
 }
 
-export default function Reservas({ consultar, cotizar, habitaciones, cliente, escrituraConocidos }) {
+export default function Reservas({ consultar, cotizar, habitaciones, cliente, escrituraConocidos, primeraActiva }) {
   const [estado, setEstado] = useState({ estado: 'cargando' })
   const [busqueda, setBusqueda] = useState('')
   const [intento, setIntento] = useState(0)
@@ -67,13 +68,14 @@ export default function Reservas({ consultar, cotizar, habitaciones, cliente, es
   return <section className="rooms-section reservations-section">
     <div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Gestión de reservas</h1><p>Consulta las reservas registradas para tu hotel.</p></div></div>
     <Cotizador habitaciones={habitaciones} cotizar={cotizar} />
+    {primeraActiva && <PrimeraReserva cliente={cliente} habitaciones={habitaciones} cotizar={cotizar} actualizar={reiniciar} />}
     {escrituraConocidos && <ReservaConocida cliente={cliente} habitaciones={habitaciones} cotizar={cotizar} actualizar={reiniciar} />}
-    <div className="room-list reservations-list"><div className="room-list-header reservations-list-header"><div><h2>Listado de reservas</h2><p>La información corresponde al hotel de tu cuenta.</p></div><div className="reservations-header-actions"><span className="reservations-total-pill">{estado.estado === 'listo' ? filas.length : '—'} resultados</span>{!escrituraConocidos && <button type="button" className="reservation-new-button" disabled title="La creación aún no está habilitada">＋ Nueva reserva</button>}</div></div>
+    <div className="room-list reservations-list"><div className="room-list-header reservations-list-header"><div><h2>Listado de reservas</h2><p>La información corresponde al hotel de tu cuenta.</p></div><div className="reservations-header-actions"><span className="reservations-total-pill">{estado.estado === 'listo' ? filas.length : '—'} resultados</span>{!escrituraConocidos && !primeraActiva && <button type="button" className="reservation-new-button" disabled title="La creación aún no está habilitada">＋ Nueva reserva</button>}</div></div>
       {estado.estado === 'cargando' && <p role="status">Cargando reservas…</p>}
       {estado.estado === 'error' && <div role="alert"><p>No se pudieron consultar las reservas. Verifica tu sesión e inténtalo de nuevo.</p><button type="button" className="list-clear-button" onClick={reiniciar}>Reintentar</button></div>}
       {estado.estado === 'listo' && <><div className="room-filters reservations-filters list-filter-row"><label className="reservation-search"><span aria-hidden="true">⌕</span><input type="search" aria-label="Buscar reservas" placeholder="Buscar por cliente, habitación o estado..." value={busqueda} onChange={e => setBusqueda(e.target.value)} /></label><button type="button" className="list-clear-button" onClick={() => setBusqueda('')}>Limpiar búsqueda</button></div>
         <div className="table-container reservations-table-container"><table className="rooms-table reservations-table real-reservas-table"><thead><tr><th>Reserva</th><th>Cliente</th><th>Habitación</th><th>Entrada</th><th>Salida</th><th>Estado</th><th>Total acordado</th></tr></thead><tbody>{filas.map(r => <tr key={r.id_reserva}><td>#{r.id_reserva}</td><td>{r.cliente_nombre} {r.cliente_apellido}</td><td>{r.habitacion_numero}</td><td>{fecha(r.fecha_entrada)}</td><td>{fecha(r.fecha_salida)}</td><td>{r.estado}</td><td>{r.total_estimado}</td></tr>)}{filas.length === 0 && <tr><td colSpan="7" className="empty-message">No se encontraron reservas.</td></tr>}</tbody></table></div>
-        <div className="reservations-list-footer"><span>Mostrando {filas.length} de {estado.datos.length} reservas</span><span>Consulta de solo lectura</span></div></>}
+        <div className="reservations-list-footer"><span>Mostrando {filas.length} de {estado.datos.length} reservas</span><span>{primeraActiva || escrituraConocidos ? 'Reservas del hotel' : 'Consulta de solo lectura'}</span></div></>}
     </div>
   </section>
 }

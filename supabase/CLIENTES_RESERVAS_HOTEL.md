@@ -1,3 +1,7 @@
+# Actualización de alcance académico
+
+La migración 100 prepara el alta de cliente nuevo y primera reserva con rechazo genérico de coincidencias. Sus garantías y límites están en `PRIMERA_RESERVA_ACADEMICA.md`. Las consideraciones siguientes describen el riesgo que sigue existiendo al observar éxito o rechazo; no se afirma ausencia de enumeración.
+
 # Clientes y reservas: alcance parcial por hotel
 
 La migración `20261107090000_clientes_y_reservas_hotel.sql` depende de las nueve migraciones anteriores. No modifica filas al instalarse. Otorga EXECUTE solo a `authenticated`; cada RPC comprueba `auth.uid()`, cuenta activa, rol ADMINISTRADOR y hotel. No otorga acceso directo a tablas. **Después de aplicar la migración la RPC de escritura será invocable por API aunque la opción de React siga desactivada.**
@@ -6,7 +10,7 @@ La migración `20261107090000_clientes_y_reservas_hotel.sql` depende de las nuev
 
 - `listar_clientes_mi_hotel()` enumera únicamente clientes que ya tienen una reserva en el hotel del administrador, con nombre y número de reservas de ese hotel. No devuelve documentos, correos ni teléfonos.
 - `detalle_cliente_mi_hotel(id)` muestra exclusivamente las reservas de ese cliente en el hotel actual. Para un ID inexistente o sin vínculo con el hotel devuelve una lista vacía en ambos casos. Un cliente compartido entre hoteles no revela sus reservas en otro hotel.
-- `crear_reserva_cliente_conocido(...)` permite una reserva confirmada solo a un cliente ya vinculado por una reserva previa en ese hotel. Esto es una **capacidad parcial**, no el flujo de primera visita aprobado en el modelo. Los intentos con un cliente inexistente o exclusivo de otro hotel devuelven el mismo mensaje genérico.
+- `crear_reserva_cliente_conocido(...)` permite una reserva confirmada solo a un cliente ya vinculado por una reserva previa en ese hotel. Esto es una capacidad separada del flujo de primera visita académica de la migración 100. Los intentos con un cliente inexistente o exclusivo de otro hotel devuelven el mismo mensaje genérico.
 
 La nueva reserva valida fechas finitas, entrada no anterior al día local, habitación propia DISPONIBLE, ausencia de estadías sin salida y mantenimientos con fin desconocido, tarifa del hotel y precio por noche aceptado. Estas restricciones conservadoras pueden impedir reservar anticipadamente una habitación hoy ocupada o con datos históricos ambiguos; no constituyen una política comercial definitiva. Se conserva el importe pactado. La restricción `EXCLUDE` sigue siendo la última defensa contra solapamientos. Las operaciones se coordinan mediante bloqueo de habitación y transacción.
 
@@ -14,7 +18,7 @@ La clave de operación es un ID BIGINT aleatorio en `[2^52, 2^53)`, representabl
 
 `VITE_CLIENTES_HOTEL=false` y `VITE_RESERVAS_CONOCIDOS=false` son valores predeterminados. Para el formulario de reservas también se necesita `VITE_RESERVAS_LECTURA=true`. Activar solo después de revisar, desplegar y probar la migración en el proyecto elegido. La opción de editar clientes no está implementada ni habilitada.
 
-## Por qué no se habilita el alta global
+## Riesgos del alta global y la reutilización
 
 El índice único del modelo distingue documento/tipo/país normalizados cuando están completos. Con una API síncrona que intenta insertar o reutilizar, un operador que controla el documento y observa si consigue registrar una reserva, una lista posterior, un conflicto de unicidad, tiempos o cambios de estado puede inferir si hubo coincidencia. Responder con un error genérico elimina detalles del mensaje pero no necesariamente ese canal. Reutilizar siempre la coincidencia sin una verificación independiente podría asociar una reserva a la persona equivocada; crear otra ficha infringiría el índice para claves completas. Los NULL históricos admiten duplicados y no autorizan completar o fusionar información automáticamente.
 
@@ -22,4 +26,4 @@ Se evaluaron: (1) mensajes idénticos y bloqueo transaccional, que no eliminan l
 
 La decisión pendiente es cómo obtener una **prueba independiente y verificable de identidad o autorización** para clientes de primera visita (por ejemplo, un canal de verificación controlado por el cliente, o una conciliación administrativa humana con atribuciones y procedimiento definidos), y cómo registrar y limitar intentos de manera durable fuera de la transacción que puede revertirse. El mecanismo debe cubrir documentos incompletos y discrepancias, retención y concurrencia. Una declaración del operador no prueba que el sistema haya verificado físicamente el documento. El prototipo en `futuro/mediador/` conserva su guardia y no forma parte de esta migración.
 
-No se implementan edición de clientes, alta global ni operaciones que permitan a un administrador buscar documentos de otros hoteles. Los errores y permisos se probaron en PostgreSQL local aislado; no se garantiza ausencia matemática de canales temporales ni sustituye pruebas de Supabase Auth/PostgREST en ensayo.
+La migración 100 inserta clientes nuevos sin reutilización automática; siguen sin implementarse edición de clientes ni búsquedas de documentos de otros hoteles. Los errores y permisos se probaron en PostgreSQL local aislado; no se garantiza ausencia matemática de canales temporales ni sustituye pruebas de Supabase Auth/PostgREST en ensayo.

@@ -43,7 +43,7 @@ def snapshot():
     return [json.loads(sql(f"select coalesce(jsonb_agg(x order by x::text),'[]'::jsonb) from (select to_jsonb(t) x from public.{t} t) z")[0]) for t in tables]
 before = snapshot()
 assert sum(map(len, before[:-1])) == 106 and len(before[-1]) == 4
-for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql','supabase/migrations/20261107070000_altas_administrativas.sql','supabase/migrations/20261107080000_indicadores_y_gestion.sql','supabase/migrations/20261107090000_clientes_y_reservas_hotel.sql'):
+for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql','supabase/migrations/20261107070000_altas_administrativas.sql','supabase/migrations/20261107080000_indicadores_y_gestion.sql','supabase/migrations/20261107090000_clientes_y_reservas_hotel.sql','supabase/migrations/20261107100000_alta_cliente_primera_reserva.sql'):
     sql(Path(f).read_text())
 assert snapshot() == before, 'La migración cambió registros existentes'
 assert sql("select has_function_privilege('anon','public.consultar_operaciones_hotel(text)','EXECUTE'), has_function_privilege('authenticated','public.consultar_operaciones_hotel(text)','EXECUTE'), has_table_privilege('authenticated','public.pago','INSERT')")[0] == 'f|t|f'
@@ -231,6 +231,25 @@ sesion(ids[0], 'select * from public.crear_reserva_cliente_conocido(1,7,current_
 sesion(ids[0], 'select * from public.crear_reserva_cliente_conocido(1,1,current_date+302,current_date+300,100,4503599627370502)',False)
 sesion(ids[0], 'select * from public.crear_reserva_cliente_conocido(1,1,current_date+300,current_date+302,-1,4503599627370502)',False)
 sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99023,1,1,'TEST-99023','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_reserva_cliente_conocido(1,99023,current_date+300,current_date+302,100,4503599627370503); select 1/0; rollback;""",False)
+# Un cliente nuevo y su primera reserva se crean o revierten conjuntamente.
+firma='public.crear_cliente_y_primera_reserva(text,text,text,text,text,bigint,date,date,numeric,bigint)'
+assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0]=='f|t'
+for user in ids[1:4]:
+    sesion(user,"select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO',1,current_date+500,current_date+502,100,4503599627370601)",False)
+sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99031,1,1,'TEST-99031','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO-1',99031,current_date+500,current_date+502,100,4503599627370601); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO-1',99031,current_date+500,current_date+502,100,4503599627370601); reset role; do $$begin if (select count(*) from public.cliente where documento='DEMO-NUEVO-1')<>1 or not exists(select 1 from public.reserva where id_reserva=4503599627370601 and total_estimado=200) then raise exception 'Alta inconsistente'; end if; end$$; rollback;""")
+# Cambiar los datos con la misma clave no reutiliza ni modifica el cliente.
+_,err_clave=sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99036,1,1,'TEST-99036','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-CLAVE',99036,current_date+500,current_date+502,100,4503599627370609); select * from public.crear_cliente_y_primera_reserva('Distinto','Local','DEMO','SINTETICO','DEMO-CLAVE',99036,current_date+500,current_date+502,100,4503599627370609); rollback;""",False)
+assert 'No se pudo completar la solicitud; revise los datos' in err_clave
+# Un documento del propio hotel tampoco se vincula automáticamente.
+_,err_propio=sesion(ids[0],"select * from public.crear_cliente_y_primera_reserva('Valeria','Quispe Salazar','DEMO','SINTETICO','DEMO-CLI-001',1,current_date+500,current_date+502,100,4503599627370610)",False)
+assert 'No se pudo completar la solicitud; revise los datos' in err_propio
+_,err_duplicado=sesion(ids[0],"select * from public.crear_cliente_y_primera_reserva('Otro','Nombre','DEMO','SINTETICO','DEMO-CLI-008',1,current_date+500,current_date+502,100,4503599627370602)",False)
+assert 'No se pudo completar la solicitud; revise los datos' in err_duplicado and 'duplicate key' not in err_duplicado
+_,err_historico=sql("""begin; insert into public.cliente(nombre,apellido,documento) values('Histórico','Prueba','DEMO-AMBIGUO'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-AMBIGUO',1,current_date+500,current_date+502,100,4503599627370602); rollback;""",False)
+assert 'No se pudo completar la solicitud; revise los datos' in err_historico
+sesion(ids[0],"select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO',7,current_date+500,current_date+502,100,4503599627370602)",False)
+sesion(ids[0],"select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO',1,current_date+502,current_date+500,100,4503599627370602)",False)
+sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99032,1,1,'TEST-99032','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-ROLLBACK',99032,current_date+500,current_date+502,100,4503599627370603); select 1/0; rollback;""",False)
 assert snapshot() == before, 'Las pruebas transaccionales modificaron datos'
 # Dos clientes concurrentes, misma clave y solicitud. Ambas respuestas deben corresponder al mismo pago.
 cmd = f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select id_pago,repetido from public.registrar_pago_reserva(7,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000003'); select pg_sleep(1); commit;"
@@ -315,4 +334,30 @@ cmd1=base_res+"4503599627370505); select pg_sleep(0.8); commit;"
 cmd2=base_res+"4503599627370506); commit;"
 a=threading.Thread(target=competir,args=(cmd1,)); b=threading.Thread(target=competir,args=(cmd2,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
 assert sorted(resultados)==[0,3], resultados
-print('OK: migraciones, clientes, reservas, aislamiento, roles, rollback y concurrencia')
+# Un mismo documento concurrente no genera dos clientes ni dos reservas.
+sql("insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99033,1,1,'TEST-99033','DISPONIBLE'),(99034,1,1,'TEST-99034','DISPONIBLE')")
+resultados.clear()
+pref=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-CONCURRENTE',"
+cmd1=pref+"99033,current_date+500,current_date+502,100,4503599627370604); select pg_sleep(0.8); commit;"
+cmd2=pref+"99034,current_date+500,current_date+502,100,4503599627370605); commit;"
+a=threading.Thread(target=competir,args=(cmd1,)); b=threading.Thread(target=competir,args=(cmd2,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,3], resultados
+assert sql("select count(*) from public.cliente where documento='DEMO-CONCURRENTE'")[0]=='1'
+assert sql("select count(*) from public.reserva where id_reserva in (4503599627370604,4503599627370605)")[0]=='1'
+# Mismo ID y mismos datos concurrentes devuelven una sola creación.
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-MISMO',99034,current_date+510,current_date+512,100,4503599627370606); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,0], resultados
+assert sql("select count(*) from public.cliente where documento='DEMO-MISMO'")[0]=='1'
+# Clientes diferentes que compiten por la misma habitación no dejan un cliente huérfano.
+sql("insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99035,1,1,'TEST-99035','DISPONIBLE')")
+resultados.clear()
+pref=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO',"
+cmd1=pref+"'DEMO-CHOQUE-1',99035,current_date+520,current_date+522,100,4503599627370607); select pg_sleep(0.8); commit;"
+cmd2=pref+"'DEMO-CHOQUE-2',99035,current_date+520,current_date+522,100,4503599627370608); commit;"
+a=threading.Thread(target=competir,args=(cmd1,)); b=threading.Thread(target=competir,args=(cmd2,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,3], resultados
+assert sql("select count(*) from public.cliente where documento in ('DEMO-CHOQUE-1','DEMO-CHOQUE-2')")[0]=='1'
+assert sql("select count(*) from public.reserva where id_reserva in (4503599627370607,4503599627370608)")[0]=='1'
+print('OK: migraciones, clientes, primera reserva, aislamiento, roles, rollback y concurrencia')

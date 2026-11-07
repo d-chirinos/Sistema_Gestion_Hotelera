@@ -1,0 +1,23 @@
+# Cliente nuevo y primera reserva: alcance académico
+
+La migración `20261107100000_alta_cliente_primera_reserva.sql` depende de las diez migraciones anteriores (000 a 090). No modifica filas al instalarse ni cambia las PK, FK, UNIQUE o la restricción de superposición. Crea `crear_cliente_y_primera_reserva`, con `SECURITY DEFINER`, `search_path` fijo y autorización de ADMINISTRADOR activo del hotel. EXECUTE se concede a `authenticated` y la RPC vuelve a comprobar el rol; no se concede acceso directo a tablas. **Al desplegarla la RPC será invocable por API aunque la interfaz esté desactivada.**
+
+## Operación
+
+La persona operadora introduce nombre, apellido, tipo de documento, país emisor y documento, y cotiza la habitación y fechas. En una sola transacción la RPC valida hotel, fecha local, disponibilidad, tarifa vigente y precio aceptado; inserta el cliente y la reserva CONFIRMADA, o no conserva ninguno de los dos. La FK y `EXCLUDE` siguen siendo la defensa definitiva. La tarifa pactada se guarda como total de alojamiento y no cambia si la tarifa vigente se modifica después. Se aplican las mismas restricciones conservadoras de disponibilidad de la migración 090: habitación DISPONIBLE, sin estadía sin salida ni mantenimiento con fin desconocido. Se rechazan fechas de entrada anteriores al día local.
+
+Si existe la misma clave documental normalizada, o una coincidencia histórica compatible con tipo o país desconocido, la operación devuelve un **mensaje genérico** y exige revisión. No devuelve datos del registro existente, no sobrescribe, fusiona ni vincula automáticamente a esa persona. Un cliente ya vinculado al hotel puede usar por separado el flujo de la migración 090; un cliente existente exclusivo de otro hotel no se reutiliza mediante esta RPC. La situación requiere conciliación administrativa. Si los datos históricos tienen NULL, la verificación es conservadora y puede bloquear un caso legítimo.
+
+## Garantías y límites
+
+El servidor serializa solicitudes con el mismo documento y las de la misma clave de reintento. La clave es un ID BIGINT aleatorio en `[2^52,2^53)`; una repetición idéntica devuelve la misma reserva y una distinta se rechaza. Si dos documentos distintos compiten por fechas superpuestas, solo una operación se confirma y el cliente de la operación fallida se revierte. El rango no está reservado físicamente frente a escrituras privilegiadas: una colisión exige conciliación.
+
+El mensaje no expone la ficha del otro hotel ni el detalle de una violación UNIQUE. **No elimina la posibilidad de inferir una coincidencia observando éxito o rechazo, ni garantiza ausencia de canales temporales.** Para este alcance académico no se incorpora un servicio externo de auditoría o verificación de identidad. Una declaración o un documento introducido por el operador no prueba que el sistema haya verificado físicamente la identidad. No se debe afirmar que hay auditoría independiente o límites de abuso durables: cualquier registro escrito dentro de la transacción se revertiría con ella. El mediador anterior permanece bloqueado.
+
+La interfaz guarda temporalmente los parámetros, incluido el documento, y la clave en `sessionStorage` de la pestaña para recuperar una respuesta perdida al recargar. No los guarda en `localStorage` ni en el repositorio. Son accesibles a scripts del mismo origen mientras permanezcan allí; usar únicamente datos ficticios en ensayo y no registrar el cuerpo de solicitudes en logs. Se eliminan tras una respuesta confirmada. Si se cierra la pestaña se pierde la clave: antes de intentar otra vez, consultar las reservas y clientes del hotel para evitar un error operativo; no cambiar datos y volver a enviar sin revisión. La unicidad y las comprobaciones evitan crear automáticamente otra identidad con el mismo documento, pero la interfaz no puede recuperar por sí sola un resultado incierto tras perder la pestaña.
+
+## Activación y pruebas
+
+`VITE_PRIMERA_RESERVA=false` por defecto; el formulario requiere también `VITE_RESERVAS_LECTURA=true`. Verificar proyecto, historial y vista previa; aplicar primero en el proyecto de ensayo únicamente cuando se autorice y después reiniciar Vite con la opción activa. La RPC no solicita ni almacena contraseñas; React utiliza solo Auth y la clave publicable configuradas.
+
+`supabase/tests/operaciones_local.py` instala las migraciones en PostgreSQL desechable sin red con usuarios y datos ficticios. Comprueba permisos, conflicto con documento existente y datos históricos ambiguos, rollback, repetición y concurrencia. Las pruebas de navegador simulan las respuestas; hace falta comprobar Auth y PostgREST reales en ensayo. Los proyectos remotos no fueron modificados durante el desarrollo.

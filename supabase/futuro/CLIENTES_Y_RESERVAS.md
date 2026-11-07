@@ -1,3 +1,7 @@
+# Estado posterior
+
+La migración 100 implementa una primera visita académica para clientes nuevos, sin reutilizar fichas existentes. Este documento conserva el diseño futuro para la conciliación y reutilización segura de clientes globales.
+
 # Diseño pendiente: identificación de clientes globales y reservas
 
 Este documento describe el diseño futuro de primera visita, **no código desplegable ni una política aprobada**. La migración 090 prepara por separado reservas para clientes ya vinculados al hotel; no implementa el alta ni la primera visita. `CLIENTE` permanece global y no requiere una reserva previa en el hotel. No se propone ninguna tabla, columna ni relación adicional.
