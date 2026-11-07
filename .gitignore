@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Configuración local de Supabase (la plantilla sin valores sí se comparte)
+.env
+.env.*
+!.env.example
