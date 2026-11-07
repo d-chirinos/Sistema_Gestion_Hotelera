@@ -3,7 +3,7 @@ export function identificadorOperacion(cryptoAPI) {
   const partes = cryptoAPI.getRandomValues(new Uint32Array(2))
   return ((1n << 61n) + (((BigInt(partes[0]) << 32n) | BigInt(partes[1])) & ((1n << 61n) - 1n))).toString()
 }
-export function crearIntencion({ cliente, almacenamiento, bloqueos, cryptoAPI, operacion, rpc, idRespuesta }) {
+export function crearIntencion({ cliente, almacenamiento, bloqueos, cryptoAPI, operacion, rpc, idRespuesta, generarClave = identificadorOperacion }) {
   const prefijo = `hotelmanager-intencion:${operacion}:`
   async function usuario() {
     const { data, error } = await cliente.auth.getUser()
@@ -29,7 +29,7 @@ export function crearIntencion({ cliente, almacenamiento, bloqueos, cryptoAPI, o
       let actual = leer(id)
       if (!actual) {
         if (!parametros) throw new Error('No hay operación pendiente')
-        actual = { clave: identificadorOperacion(cryptoAPI), parametros }
+        actual = { clave: generarClave(cryptoAPI), parametros }
         almacenamiento.setItem(llave, JSON.stringify(actual))
       } else if (parametros && JSON.stringify(parametros) !== JSON.stringify(actual.parametros)) throw new Error('Hay una operación pendiente')
       if (await usuario() !== id) throw new Error('La sesión cambió')

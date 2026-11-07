@@ -1,6 +1,6 @@
 # Diseño pendiente: identificación de clientes globales y reservas
 
-Este documento describe una propuesta, **no código desplegable ni una política aprobada**. La etapa actual no permite crear clientes ni reservas. `CLIENTE` permanece global y no requiere una reserva previa en el hotel. No se propone ninguna tabla, columna ni relación adicional.
+Este documento describe el diseño futuro de primera visita, **no código desplegable ni una política aprobada**. La migración 090 prepara por separado reservas para clientes ya vinculados al hotel; no implementa el alta ni la primera visita. `CLIENTE` permanece global y no requiere una reserva previa en el hotel. No se propone ninguna tabla, columna ni relación adicional.
 
 ## Flujo propuesto para definir y aprobar
 
