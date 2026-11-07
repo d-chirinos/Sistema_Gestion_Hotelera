@@ -38,28 +38,28 @@ insert into public.tipo_habitacion (id_tipo, nombre, descripcion, capacidad) val
   (4, 'Suite', 'Escenario sintético', 2);
 
 insert into public.cliente (id_cliente, nombre, apellido, tipo_documento, pais_emisor_documento, documento, email) values
-  (1, 'Cliente', 'Sintético 01', 'DEMO', 'SINTETICO', 'DEMO-CLI-001', 'cliente01@example.invalid'),
-  (2, 'Cliente', 'Sintético 02', 'DEMO', 'SINTETICO', 'DEMO-CLI-002', 'cliente02@example.invalid'),
-  (3, 'Cliente', 'Sintético 03', 'DEMO', 'SINTETICO', 'DEMO-CLI-003', 'cliente03@example.invalid'),
-  (4, 'Cliente', 'Sintético 04', 'DEMO', 'SINTETICO', 'DEMO-CLI-004', 'cliente04@example.invalid'),
-  (5, 'Cliente', 'Sintético 05', 'DEMO', 'SINTETICO', 'DEMO-CLI-005', 'cliente05@example.invalid'),
-  (6, 'Cliente', 'Sintético 06', 'DEMO', 'SINTETICO', 'DEMO-CLI-006', 'cliente06@example.invalid'),
-  (7, 'Cliente', 'Sintético 07', 'DEMO', 'SINTETICO', 'DEMO-CLI-007', 'cliente07@example.invalid'),
-  (8, 'Cliente', 'Sintético 08', 'DEMO', 'SINTETICO', 'DEMO-CLI-008', 'cliente08@example.invalid'),
-  (9, 'Cliente', 'Sintético 09', 'DEMO', 'SINTETICO', 'DEMO-CLI-009', 'cliente09@example.invalid'),
-  (10, 'Cliente', 'Sintético 10', 'DEMO', 'SINTETICO', 'DEMO-CLI-010', 'cliente10@example.invalid'),
-  (11, 'Cliente', 'Sintético 11', 'DEMO', 'SINTETICO', 'DEMO-CLI-011', 'cliente11@example.invalid'),
-  (12, 'Cliente', 'Sintético 12', 'DEMO', 'SINTETICO', 'DEMO-CLI-012', 'cliente12@example.invalid');
+  (1, 'Valeria', 'Quispe Salazar', 'DEMO', 'SINTETICO', 'DEMO-CLI-001', 'cliente01@example.invalid'),
+  (2, 'Diego', 'Rojas Paredes', 'DEMO', 'SINTETICO', 'DEMO-CLI-002', 'cliente02@example.invalid'),
+  (3, 'Camila', 'Torres Medina', 'DEMO', 'SINTETICO', 'DEMO-CLI-003', 'cliente03@example.invalid'),
+  (4, 'Andrés', 'Vargas Cárdenas', 'DEMO', 'SINTETICO', 'DEMO-CLI-004', 'cliente04@example.invalid'),
+  (5, 'Lucía', 'Paredes Flores', 'DEMO', 'SINTETICO', 'DEMO-CLI-005', 'cliente05@example.invalid'),
+  (6, 'Joaquín', 'Mendoza Ríos', 'DEMO', 'SINTETICO', 'DEMO-CLI-006', 'cliente06@example.invalid'),
+  (7, 'Mariana', 'Soto Carrillo', 'DEMO', 'SINTETICO', 'DEMO-CLI-007', 'cliente07@example.invalid'),
+  (8, 'Emiliano', 'Luna Ortega', 'DEMO', 'SINTETICO', 'DEMO-CLI-008', 'cliente08@example.invalid'),
+  (9, 'Renata', 'Vega Morales', 'DEMO', 'SINTETICO', 'DEMO-CLI-009', 'cliente09@example.invalid'),
+  (10, 'Santiago', 'Herrera Cruz', 'DEMO', 'SINTETICO', 'DEMO-CLI-010', 'cliente10@example.invalid'),
+  (11, 'Ximena', 'Castro Rivas', 'DEMO', 'SINTETICO', 'DEMO-CLI-011', 'cliente11@example.invalid'),
+  (12, 'Mateo', 'Navarro Silva', 'DEMO', 'SINTETICO', 'DEMO-CLI-012', 'cliente12@example.invalid');
 
 insert into public.empleado (id_empleado, hotel_id_hotel, cargo_id_cargo, nombre, apellido, documento, fecha_ingreso) values
-  (1, 1, 1, 'Empleado', 'Sintético 01', 'DEMO-EMP-001', date '2020-01-01'),
-  (2, 1, 2, 'Empleado', 'Sintético 02', 'DEMO-EMP-002', date '2020-01-01'),
-  (3, 1, 3, 'Empleado', 'Sintético 03', 'DEMO-EMP-003', date '2020-01-01'),
-  (4, 1, 4, 'Empleado', 'Sintético 04', 'DEMO-EMP-004', date '2020-01-01'),
-  (5, 2, 1, 'Empleado', 'Sintético 05', 'DEMO-EMP-005', date '2020-01-01'),
-  (6, 2, 2, 'Empleado', 'Sintético 06', 'DEMO-EMP-006', date '2020-01-01'),
-  (7, 2, 3, 'Empleado', 'Sintético 07', 'DEMO-EMP-007', date '2020-01-01'),
-  (8, 2, 4, 'Empleado', 'Sintético 08', 'DEMO-EMP-008', date '2020-01-01');
+  (1, 1, 1, 'Paola', 'Mendoza Cárdenas', 'DEMO-EMP-001', date '2020-01-01'),
+  (2, 1, 2, 'Alonso', 'Rivas Quispe', 'DEMO-EMP-002', date '2020-01-01'),
+  (3, 1, 3, 'Marisol', 'Flores Paredes', 'DEMO-EMP-003', date '2020-01-01'),
+  (4, 1, 4, 'Héctor', 'Salazar Vega', 'DEMO-EMP-004', date '2020-01-01'),
+  (5, 2, 1, 'Fernanda', 'Ortega Luna', 'DEMO-EMP-005', date '2020-01-01'),
+  (6, 2, 2, 'Javier', 'Cruz Herrera', 'DEMO-EMP-006', date '2020-01-01'),
+  (7, 2, 3, 'Daniela', 'Morales Soto', 'DEMO-EMP-007', date '2020-01-01'),
+  (8, 2, 4, 'Rodrigo', 'Castro Navarro', 'DEMO-EMP-008', date '2020-01-01');
 
 insert into public.habitacion (id_habitacion, hotel_id_hotel, tipo_habitacion_id_tipo, numero, piso, estado) values
   (1, 1, 1, 'D-001', 1, 'DISPONIBLE'),

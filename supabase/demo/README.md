@@ -35,3 +35,9 @@ Las restricciones de seguridad del esquema siguen vigentes: RLS sin políticas y
 ## Validación aislada
 
 Se probó en PostgreSQL 15 con los objetos de Supabase simulados y la migración estructural original. Se comprobaron conteos, referencias, intervalos, clasificación de pagos, fechas locales, correspondencia de hoteles, estados, precios, vista de subtotal y ausencia de usuarios o cuentas. Una segunda ejecución fue rechazada. Esto no prueba RPC, RLS ni transacciones de la aplicación futura, que aún no están implementadas, ni equivale a probar el proyecto remoto.
+
+## Corrección de nombres en una carga anterior
+
+La carga inicial usaba nombres literales como `Cliente Sintético 01`. La versión actual asigna nombres ficticios de aspecto natural; los documentos `DEMO`, los correos `example.invalid`, los ID y todas las demás columnas permanecen iguales. No se pretende representar personas reales. El empleado ID 1 pasa a llamarse Paola Mendoza Cárdenas y conserva el hotel 1 y el cargo 1; la plantilla de primer administrador sigue vinculando por ID, no por nombre.
+
+Para una base que ya recibió la carga anterior se ha preparado `correccion_nombres_sinteticos.sql`, un script manual independiente, fuera de migraciones y semillas. Bloquea las dos tablas, verifica los 20 ID junto con los nombres anteriores y documentos `DEMO` y actualiza únicamente nombre y apellido en una transacción. Una discrepancia cancela toda la operación; no lo ejecute sobre una base ya corregida ni intente forzar una repetición. Antes de cualquier ejecución remota, verificar el proyecto, revisar y autorizar expresamente el script, respaldar según los procedimientos del proyecto y comparar el estado esperado. La autorización para preparar el archivo no autoriza su ejecución.
