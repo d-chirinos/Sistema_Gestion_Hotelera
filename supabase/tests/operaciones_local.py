@@ -43,7 +43,7 @@ def snapshot():
     return [json.loads(sql(f"select coalesce(jsonb_agg(x order by x::text),'[]'::jsonb) from (select to_jsonb(t) x from public.{t} t) z")[0]) for t in tables]
 before = snapshot()
 assert sum(map(len, before[:-1])) == 106 and len(before[-1]) == 4
-for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql'):
+for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql','supabase/migrations/20261107070000_altas_administrativas.sql'):
     sql(Path(f).read_text())
 assert snapshot() == before, 'La migración cambió registros existentes'
 assert sql("select has_function_privilege('anon','public.consultar_operaciones_hotel(text)','EXECUTE'), has_function_privilege('authenticated','public.consultar_operaciones_hotel(text)','EXECUTE'), has_table_privilege('authenticated','public.pago','INSERT')")[0] == 'f|t|f'
@@ -147,6 +147,27 @@ set local role authenticated; select * from public.liberar_habitacion_mantenimie
 reset role;
 do $$begin if (select estado from public.habitacion where id_habitacion=99004)<>'DISPONIBLE' then raise exception 'Liberación inconsistente'; end if; end$$;
 rollback;""")
+# Altas de catálogo: un reintento no duplica y nunca modifica el registro existente.
+for firma in ('public.crear_servicio_hotel(text,numeric)', 'public.crear_habitacion_hotel(text,bigint,integer)'):
+    assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0] == 'f|t'
+for user in ids[1:4]:
+    sesion(user, "select * from public.crear_servicio_hotel('Prueba local',10)", False)
+    sesion(user, "select * from public.crear_habitacion_hotel('Prueba local',1,1)", False)
+for command in ("select * from public.crear_servicio_hotel(' ',10)", "select * from public.crear_servicio_hotel('Prueba local',-1)", "select * from public.crear_servicio_hotel('Prueba local',1.111)", "select * from public.crear_habitacion_hotel('Prueba local',999999,1)"):
+    sesion(ids[0],command,False)
+out,_=sesion(ids[0], "select repetido from public.crear_servicio_hotel(' Servicio local ',12); select repetido from public.crear_servicio_hotel('servicio local',12)")
+assert '\nf\n' in out and '\nt\n' in out
+out,_=sesion(ids[0], "select repetido from public.crear_habitacion_hotel(' H-LOCAL ',1,1); select repetido from public.crear_habitacion_hotel('h-local',1,1)")
+assert '\nf\n' in out and '\nt\n' in out
+sesion(ids[0], "select * from public.crear_servicio_hotel('Servicio local',12); select * from public.crear_servicio_hotel('Servicio local',13)", False)
+sesion(ids[0], "select * from public.crear_habitacion_hotel('H-LOCAL',1,1); select * from public.crear_habitacion_hotel('H-LOCAL',1,2)", False)
+sesion(ids[0], "select * from public.crear_servicio_hotel('Servicio local',12); select 1/0", False)
+# El mismo nombre puede existir en dos hoteles sin mezclar registros.
+sql("""begin; set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_servicio_hotel('Servicio compartido',12); select set_config('request.jwt.claim.sub','"""+ids[4]+"""',true); select * from public.crear_servicio_hotel('Servicio compartido',15); reset role; do $$begin if (select count(*) from public.servicio where lower(btrim(nombre))='servicio compartido')<>2 then raise exception 'Hoteles mezclados'; end if; end$$; rollback;""")
+# Una tarifa de otro hotel no autoriza un tipo ajeno al propio.
+sql("""begin; insert into public.tipo_habitacion(id_tipo,nombre,capacidad) values(99001,'Tipo local de prueba',1);
+insert into public.tarifa_habitacion(hotel_id_hotel,tipo_habitacion_id_tipo,precio_noche) values(2,99001,10);
+set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_habitacion_hotel('Prueba',99001,1); rollback;""",False)
 assert snapshot() == before, 'Las pruebas transaccionales modificaron datos'
 # Dos clientes concurrentes, misma clave y solicitud. Ambas respuestas deben corresponder al mismo pago.
 cmd = f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select id_pago,repetido from public.registrar_pago_reserva(7,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000003'); select pg_sleep(1); commit;"
@@ -189,4 +210,15 @@ a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=c
 assert sorted(resultados)==[0,0], resultados
 assert sql("select count(*) from public.mantenimiento where id_mantenimiento=2305843009213694004")[0]=='1'
 assert sql("select estado from public.habitacion where id_habitacion=99005")[0]=='MANTENIMIENTO'
-print('OK: migraciones, aislamiento, roles, pagos, estadías, consumos, mantenimiento, rollback y concurrencia')
+# Dos altas concurrentes del mismo servicio se serializan por hotel y nombre normalizado.
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.crear_servicio_hotel('Servicio concurrente',12); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,0], resultados
+assert sql("select count(*) from public.servicio where hotel_id_hotel=1 and lower(btrim(nombre))='servicio concurrente'")[0]=='1'
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.crear_habitacion_hotel('H-CONCURRENTE',1,1); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,0], resultados
+assert sql("select count(*) from public.habitacion where hotel_id_hotel=1 and lower(btrim(numero))='h-concurrente'")[0]=='1'
+print('OK: migraciones, aislamiento, roles, altas, pagos, estadías, consumos, mantenimiento, rollback y concurrencia')

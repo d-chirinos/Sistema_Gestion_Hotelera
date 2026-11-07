@@ -2,7 +2,7 @@
 
 Para el alcance añadido de consumos y mantenimiento, consulta [CONSUMOS_MANTENIMIENTO.md](CONSUMOS_MANTENIMIENTO.md). El estado de las migraciones puede diferir entre proyectos: comprobar su historial antes de cualquier despliegue.
 
-Las migraciones se han probado solamente en PostgreSQL local. No se han aplicado al proyecto remoto. Aplicarlas concede inmediatamente EXECUTE a `authenticated`; las funciones comprueban además `auth.uid()`, cuenta activa, rol ADMINISTRADOR y hotel. Los indicadores de React no son una barrera de permisos. Ninguna migración concede escritura directa a tablas ni modifica las filas al instalarse.
+Las migraciones se probaron en PostgreSQL local. El operador confirmó que están aplicadas en HotelManager-Pruebas; el estado de cualquier otro proyecto debe comprobarse por separado. Aplicarlas concede inmediatamente EXECUTE a `authenticated`; las funciones comprueban además `auth.uid()`, cuenta activa, rol ADMINISTRADOR y hotel. Los indicadores de React no son una barrera de permisos. Ninguna migración concede escritura directa a tablas ni modifica las filas al instalarse.
 
 ## Orden y alcance
 
@@ -10,7 +10,7 @@ Las migraciones se han probado solamente en PostgreSQL local. No se han aplicado
 2. `20261107040000_pagos_y_precios.sql`: registrar pagos recibidos y actualizar precios vigentes de tarifas y servicios. El archivo anterior en `futuro/` se conserva como referencia histórica y no incluye las últimas comprobaciones; **no lo ejecute adicionalmente**.
 3. `20261107050000_estadias_seguras.sql`: entrada y salida ordinarias. Coordina con pagos mediante el orden de bloqueo habitación → reserva → estadía.
 
-**`supabase db push` propondrá ambas migraciones pendientes.** El indicador de interfaz es independiente de esos permisos. Hacer primero una vista previa y probar ambas en un proyecto de ensayo; aplicar solo con autorización. Si se desea aplicar solo una, preparar una entrega separada: no asumir que `db push` selecciona una por su nombre.
+**`supabase db push` propone todas las migraciones pendientes según el historial del proyecto vinculado.** El indicador de interfaz es independiente de esos permisos. Antes de cualquier aplicación, confirmar el destino y revisar la vista previa; no asumir que `db push` selecciona una migración por su nombre.
 
 ## Pagos
 

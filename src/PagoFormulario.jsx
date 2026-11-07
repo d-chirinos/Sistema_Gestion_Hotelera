@@ -13,6 +13,7 @@ export default function PagoFormulario({ pagos, alGuardar }) {
   }, [pagos])
   async function enviar(evento) {
     evento.preventDefault()
+    if (!pendiente && (!/^[1-9]\d*$/.test(form.reserva) || !/^\d{1,8}(\.\d{1,2})?$/.test(form.monto) || Number(form.monto) <= 0 || !form.metodo.trim())) { setAviso('Indica una reserva, importe positivo con hasta dos decimales y método válidos.'); return }
     if (!window.confirm(pendiente ? '¿Reintentar la misma operación pendiente?' : '¿Confirmas que el pago ya se recibió y deseas registrarlo?')) return
     setCargando(true); setAviso('')
     try {

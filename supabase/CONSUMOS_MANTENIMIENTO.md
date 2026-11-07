@@ -1,4 +1,6 @@
-# Consumos y mantenimiento: preparados para ensayo
+# Consumos y mantenimiento
+
+El operador confirmó que la migración 060 está aplicada en HotelManager-Pruebas; verificar el historial de cualquier otro proyecto por separado.
 
 La migración `20261107060000_consumos_mantenimiento.sql` depende de las seis migraciones anteriores. No carga ni modifica filas al instalarse. Crea RPC con `SECURITY DEFINER`, `search_path` fijo, verificación de `auth.uid()`, ADMINISTRADOR activo y hotel propio. Otorga EXECUTE a `authenticated`, no a `anon` ni PUBLIC; ninguna RPC permite escrituras directas de tablas. **Tras aplicar la migración, las RPC de escritura serán invocables por la API aunque la interfaz siga desactivada.**
 
@@ -20,6 +22,6 @@ Antes de enviar, React guarda en `localStorage` la clave y los parámetros por c
 
 ## Activación y demostración
 
-`VITE_OPERACIONES_ESCRITURA=false` por defecto. Tras aplicar y probar la migración exclusivamente en el proyecto de ensayo, puede activarse junto con `VITE_OPERACIONES_LECTURA=true` y reiniciar Vite. Usar únicamente una estadía abierta y una habitación realmente disponibles en el hotel, verificadas en la interfaz. Crear un consumo, revisar precio y subtotal, iniciar un mantenimiento en una habitación sin reservas incompatibles, finalizarlo y, después, liberarla. No asumir que las filas históricas de fin NULL corresponden a trabajos activos.
+`VITE_OPERACIONES_ESCRITURA=false` por defecto. Tras comprobar la migración y sus permisos en el proyecto de ensayo, puede activarse junto con `VITE_OPERACIONES_LECTURA=true` y reiniciar Vite. Usar únicamente una estadía abierta y una habitación realmente disponibles en el hotel, verificadas en la interfaz. Crear un consumo, revisar precio y subtotal, iniciar un mantenimiento en una habitación sin reservas incompatibles, finalizarlo y, después, liberarla. No asumir que las filas históricas de fin NULL corresponden a trabajos activos.
 
 Las pruebas de navegador son simuladas. Verificar en un proyecto de ensayo real, sin reutilizar como operaciones reales los ejemplos de las pruebas. Consultar `supabase/tests/operaciones_local.py` para ejecutar pruebas PostgreSQL en un contenedor desechable sin red.
