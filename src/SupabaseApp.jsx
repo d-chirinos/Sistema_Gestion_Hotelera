@@ -5,6 +5,8 @@ import { crearControlSesion } from './supabase/sesion.js'
 import { SECCIONES, resumenHabitaciones } from './supabase/vista.js'
 import { crearConsultaReservas, crearCotizadorReservas } from './supabase/reservas.js'
 import Reservas from './Reservas.jsx'
+import OperacionesLectura from './OperacionesLectura.jsx'
+import { crearConsultaOperaciones, MODULOS_OPERATIVOS } from './supabase/operaciones.js'
 import './App.css'
 import './SupabaseApp.css'
 
@@ -72,10 +74,12 @@ function DatosHotel({ estado, onSalir }) {
   const [subseccion, setSubseccion] = useState('habitacion')
   const [menuAbierto, setMenuAbierto] = useState(false)
   const { datos, cuenta } = estado
+  const operacionesActivas = import.meta.env.VITE_OPERACIONES_LECTURA === 'true'
+  const consultarOperaciones = useMemo(() => crearConsultaOperaciones(supabase), [])
   const reservasActivas = import.meta.env.VITE_RESERVAS_LECTURA === 'true'
   const consultarReservas = useMemo(() => crearConsultaReservas(supabase), [])
   const cotizarReserva = useMemo(() => crearCotizadorReservas(supabase), [])
-  const secciones = SECCIONES.map(item => item.id === 'reservas' ? { ...item, disponible: reservasActivas } : item)
+  const secciones = SECCIONES.map(item => item.id === 'reservas' ? { ...item, disponible: reservasActivas } : MODULOS_OPERATIVOS.includes(item.id) ? { ...item, disponible: operacionesActivas } : item)
   const hotel = datos.hotel[0]
   const seleccion = secciones.find(item => item.id === seccion)
   function navegar(id) { setSeccion(id); setMenuAbierto(false); if (id === 'habitacion') setSubseccion('habitacion') }
@@ -87,6 +91,7 @@ function DatosHotel({ estado, onSalir }) {
       {seccion === 'habitacion' && <section className="rooms-section rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Gestión de habitaciones</h1><p>Consulta las habitaciones y tarifas de {hotel.nombre}.</p></div><div className="reservations-heading-note"><span className="reservations-note-icon">▦</span><div><strong>{datos.habitacion.length} registros</strong><span>Habitaciones del hotel</span></div></div></div><div className="rooms-subnav" role="tablist" aria-label="Secciones de habitaciones">{[['habitacion', 'Habitaciones'], ['tipo_habitacion', 'Tipos de habitación'], ['tarifa_habitacion', 'Tarifas']].map(([id, label]) => <button type="button" role="tab" aria-selected={subseccion === id} className={subseccion === id ? 'active' : ''} onClick={() => setSubseccion(id)} key={id}>{label}</button>)}</div>{subseccion === 'habitacion' && <Tarjetas habitaciones={datos.habitacion} />}<TablaLectura key={subseccion} recurso={subseccion} datos={datos} /></section>}
       {seccion === 'servicio' && <section className="rooms-section rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">GESTIÓN HOTELERA</span><h1>Servicios</h1><p>Consulta los servicios disponibles en {hotel.nombre}.</p></div></div><TablaLectura recurso="servicio" datos={datos} /></section>}
       {seccion === 'reservas' && reservasActivas && <Reservas consultar={consultarReservas} cotizar={cotizarReserva} habitaciones={datos.habitacion} />}
+      {operacionesActivas && MODULOS_OPERATIVOS.includes(seccion) && <OperacionesLectura key={seccion} modulo={seccion} consultar={consultarOperaciones} />}
       {!seleccion.disponible && <section className="rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">MÓDULO PENDIENTE</span><h1>{seleccion.titulo}</h1><p>Este módulo estará disponible cuando se implementen sus consultas y permisos.</p></div></div><div className="dashboard-panel real-pending"><span aria-hidden="true">◷</span><h2>Próximamente</h2><p>Esta sección aún no tiene datos ni operaciones habilitadas.</p></div></section>}
     </main>
   </div>
