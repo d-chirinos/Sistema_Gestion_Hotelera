@@ -1,4 +1,6 @@
-# Escrituras administrativas preparadas para revisión
+# Escrituras administrativas
+
+Para el alcance añadido de consumos y mantenimiento, consulta [CONSUMOS_MANTENIMIENTO.md](CONSUMOS_MANTENIMIENTO.md). El estado de las migraciones puede diferir entre proyectos: comprobar su historial antes de cualquier despliegue.
 
 Las migraciones se han probado solamente en PostgreSQL local. No se han aplicado al proyecto remoto. Aplicarlas concede inmediatamente EXECUTE a `authenticated`; las funciones comprueban además `auth.uid()`, cuenta activa, rol ADMINISTRADOR y hotel. Los indicadores de React no son una barrera de permisos. Ninguna migración concede escritura directa a tablas ni modifica las filas al instalarse.
 
@@ -30,7 +32,7 @@ Las RPC solo actualizan registros del hotel propio. El formulario envía el prec
 
 Las opciones `VITE_PAGOS_ESCRITURA`, `VITE_ESTADIAS_ESCRITURA` y `VITE_PRECIOS_ESCRITURA` están en `false` por defecto. Para probar formularios, configurar la opción correspondiente después de desplegar las RPC en ensayo y reconstruir o reiniciar Vite. También se necesita `VITE_OPERACIONES_LECTURA=true` para ver pagos y estadías. Las acciones piden confirmación, procesan errores y vuelven a consultar tras éxito; ante errores de red no presumen que la escritura haya fallado.
 
-Clientes y reservas siguen bloqueados por enumeración y auditoría reversible; `futuro/mediador/` conserva la guardia. Consumos necesita una clave idempotente persistida sin alterar indebidamente el modelo. El fin de mantenimiento requiere distinguir intervenciones actuales de históricos con fecha NULL, sin interpretar automáticamente ese NULL. Edición de habitaciones, empleados, cargos y cuentas necesita reglas de historial y autorización; la provisión Auth debe usar una vía administrativa segura, no credenciales privilegiadas en React.
+Clientes y reservas siguen bloqueados por enumeración y auditoría reversible; `futuro/mediador/` conserva la guardia. Consumos y mantenimiento están preparados en una migración posterior, con las precauciones descritas en CONSUMOS_MANTENIMIENTO.md. Edición de habitaciones, empleados, cargos y cuentas necesita reglas de historial y autorización; la provisión Auth debe usar una vía administrativa segura, no credenciales privilegiadas en React.
 
 ## Pruebas locales
 

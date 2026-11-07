@@ -43,7 +43,7 @@ def snapshot():
     return [json.loads(sql(f"select coalesce(jsonb_agg(x order by x::text),'[]'::jsonb) from (select to_jsonb(t) x from public.{t} t) z")[0]) for t in tables]
 before = snapshot()
 assert sum(map(len, before[:-1])) == 106 and len(before[-1]) == 4
-for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql'):
+for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql'):
     sql(Path(f).read_text())
 assert snapshot() == before, 'La migración cambió registros existentes'
 assert sql("select has_function_privilege('anon','public.consultar_operaciones_hotel(text)','EXECUTE'), has_function_privilege('authenticated','public.consultar_operaciones_hotel(text)','EXECUTE'), has_table_privilege('authenticated','public.pago','INSERT')")[0] == 'f|t|f'
@@ -112,6 +112,41 @@ insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_ti
 insert into public.mantenimiento(id_mantenimiento,habitacion_id_habitacion,empleado_id_empleado,fecha_inicio,tipo) values(99003,99003,1,current_date,'Histórico de prueba');
 insert into public.reserva(id_reserva,cliente_id_cliente,habitacion_id_habitacion,fecha_entrada,fecha_salida,estado,total_estimado,fecha_reserva) values(99003,1,99003,(clock_timestamp() at time zone 'America/Lima')::date,(clock_timestamp() at time zone 'America/Lima')::date+1,'CONFIRMADA',100,current_date);
 set local role authenticated; select set_config('request.jwt.claim.sub','""" + ids[0] + """',true); select * from public.registrar_checkin(99003); rollback;""",False)
+# Consumo y mantenimiento nuevos usan IDs aleatorios como identificadores idempotentes.
+for firma in ('public.registrar_consumo_estadia(bigint,bigint,integer,numeric,bigint)', 'public.iniciar_mantenimiento_hotel(bigint,text,bigint)', 'public.finalizar_mantenimiento_hotel(bigint,numeric,boolean)', 'public.liberar_habitacion_mantenimiento(bigint)'):
+    assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0]=='f|t'
+for user in ids[1:4]:
+    sesion(user, 'select * from public.registrar_consumo_estadia(5,2,1,20,2305843009213694001)', False)
+    sesion(user, "select * from public.iniciar_mantenimiento_hotel(1,'Prueba',2305843009213694002)", False)
+    sesion(user, 'select * from public.finalizar_mantenimiento_hotel(2305843009213694002,0,true)', False)
+    sesion(user, 'select * from public.liberar_habitacion_mantenimiento(1)', False)
+for command in ('select * from public.registrar_consumo_estadia(6,2,1,20,2305843009213694001)', 'select * from public.registrar_consumo_estadia(5,6,1,20,2305843009213694001)', 'select * from public.registrar_consumo_estadia(5,2,0,20,2305843009213694001)', 'select * from public.registrar_consumo_estadia(1,2,1,20,2305843009213694001)', "select * from public.iniciar_mantenimiento_hotel(7,'Prueba',2305843009213694002)", 'select * from public.finalizar_mantenimiento_hotel(1,0,true)'):
+    sesion(ids[0], command, False)
+_,err_precio = sesion(ids[0], 'select * from public.registrar_consumo_estadia(5,2,2,19,2305843009213694001)', False)
+assert 'precio ha cambiado' in err_precio
+sesion(ids[0], 'select * from public.registrar_consumo_estadia(5,2,2,20,2305843009213694001); select 1/0', False)
+out,_=sesion(ids[0], 'select repetido from public.registrar_consumo_estadia(5,2,2,20,2305843009213694001); select repetido from public.registrar_consumo_estadia(5,2,2,20,2305843009213694001)')
+assert '\nf\n' in out and '\nt\n' in out
+sesion(ids[0], 'select * from public.registrar_consumo_estadia(5,2,2,20,2305843009213694001); select * from public.registrar_consumo_estadia(5,2,3,20,2305843009213694001)', False)
+# Con una reserva confirmada futura no se inicia una intervención de duración desconocida.
+_,err_reserva=sql("""begin;
+insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99006,1,1,'TEST-99006','DISPONIBLE');
+insert into public.reserva(id_reserva,cliente_id_cliente,habitacion_id_habitacion,fecha_entrada,fecha_salida,estado,total_estimado,fecha_reserva) values(99006,1,99006,(clock_timestamp() at time zone 'America/Lima')::date+30,(clock_timestamp() at time zone 'America/Lima')::date+31,'CONFIRMADA',100,current_date);
+set local role authenticated; select set_config('request.jwt.claim.sub','""" + ids[0] + """',true); select * from public.iniciar_mantenimiento_hotel(99006,'Prueba',2305843009213694006); rollback;""",False)
+assert 'requiere revisión' in err_reserva
+sql("""begin;
+insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99004,1,1,'TEST-99004','DISPONIBLE');
+set local role authenticated; select set_config('request.jwt.claim.sub','""" + ids[0] + """',true);
+select * from public.iniciar_mantenimiento_hotel(99004,'Prueba',2305843009213694002);
+select * from public.iniciar_mantenimiento_hotel(99004,'Prueba',2305843009213694002);
+select * from public.finalizar_mantenimiento_hotel(2305843009213694002,12,true);
+select * from public.finalizar_mantenimiento_hotel(2305843009213694002,12,true);
+reset role;
+do $$begin if (select estado from public.habitacion where id_habitacion=99004)<>'MANTENIMIENTO' then raise exception 'No debe liberarse automáticamente'; end if; end$$;
+set local role authenticated; select * from public.liberar_habitacion_mantenimiento(99004);
+reset role;
+do $$begin if (select estado from public.habitacion where id_habitacion=99004)<>'DISPONIBLE' then raise exception 'Liberación inconsistente'; end if; end$$;
+rollback;""")
 assert snapshot() == before, 'Las pruebas transaccionales modificaron datos'
 # Dos clientes concurrentes, misma clave y solicitud. Ambas respuestas deben corresponder al mismo pago.
 cmd = f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select id_pago,repetido from public.registrar_pago_reserva(7,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000003'); select pg_sleep(1); commit;"
@@ -137,4 +172,21 @@ a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=c
 assert sorted(resultados)==[0,3], resultados
 assert sql("select estado from public.habitacion where id_habitacion=99002")[0]=='DISPONIBLE'
 assert sql("select estado from public.reserva where id_reserva=99002")[0]=='COMPLETADA'
-print('OK: migraciones, aislamiento por hotel, roles, pagos, tarifas, estadías, rollback y concurrencia')
+# Reintentos concurrentes del consumo conservan el mismo precio y una única fila.
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.registrar_consumo_estadia(5,2,2,20,2305843009213694003); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,0], resultados
+assert sql("select count(*) from public.consumo_servicio where id_consumo=2305843009213694003")[0]=='1'
+assert sql("select precio_unitario_aplicado from public.consumo_servicio where id_consumo=2305843009213694003")[0]=='20.00'
+out,_=sesion(ids[0], "select jsonb_typeof(x->'id_consumo') from public.consultar_operaciones_hotel('consumos') x where x->>'id_consumo'='2305843009213694003'")
+assert '\nstring\n' in out
+# Inicio simultáneo con la misma clave produce una sola intervención.
+sql("insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99005,1,1,'TEST-99005','DISPONIBLE')")
+resultados.clear()
+comando=f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select * from public.iniciar_mantenimiento_hotel(99005,'Prueba',2305843009213694004); select pg_sleep(0.8); commit;"
+a=threading.Thread(target=competir,args=(comando,)); b=threading.Thread(target=competir,args=(comando,)); a.start(); time.sleep(.1); b.start(); a.join(); b.join()
+assert sorted(resultados)==[0,0], resultados
+assert sql("select count(*) from public.mantenimiento where id_mantenimiento=2305843009213694004")[0]=='1'
+assert sql("select estado from public.habitacion where id_habitacion=99005")[0]=='MANTENIMIENTO'
+print('OK: migraciones, aislamiento, roles, pagos, estadías, consumos, mantenimiento, rollback y concurrencia')

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import PagoFormulario from './PagoFormulario.jsx'
 import EstadiaFormulario from './EstadiaFormulario.jsx'
+import ConsumosMantenimiento from './ConsumosMantenimiento.jsx'
 
 const MODULOS = {
   estadias: { titulo: 'Estadías', id: 'id_estadia', columnas: [['id_estadia', 'Estadía'], ['reserva_id_reserva', 'Reserva'], ['habitacion_numero', 'Habitación'], ['empleado_id_empleado', 'Empleado'], ['fecha_checkin', 'Entrada'], ['fecha_checkout', 'Salida']] },
@@ -10,7 +11,7 @@ const MODULOS = {
   empleados: { titulo: 'Empleados', id: 'id_empleado', columnas: [['id_empleado', 'ID'], ['nombre', 'Nombre'], ['apellido', 'Apellido'], ['cargo', 'Cargo'], ['fecha_ingreso', 'Ingreso']] },
   cargos: { titulo: 'Cargos', id: 'id_cargo', columnas: [['id_cargo', 'ID'], ['nombre', 'Cargo']] },
 }
-export default function OperacionesLectura({ modulo, consultar, pagos, pagosActivos, estadiasActivas, cliente, actualizar }) {
+export default function OperacionesLectura({ modulo, consultar, pagos, pagosActivos, estadiasActivas, operacionesEscritura, cliente, actualizar, datos }) {
   const [version, setVersion] = useState(0)
   const [estado, setEstado] = useState({ cargando: true, datos: [] })
   useEffect(() => {
@@ -20,6 +21,7 @@ export default function OperacionesLectura({ modulo, consultar, pagos, pagosActi
   }, [modulo, consultar, version])
   const config = MODULOS[modulo]
   return <section className="rooms-modern-section"><div className="reservations-heading"><div className="welcome"><span className="reservations-eyebrow">CONSULTA DEL HOTEL</span><h1>{config.titulo}</h1><p>Información autorizada del hotel asignado.</p></div></div>
+    {operacionesEscritura && ['consumos', 'mantenimiento'].includes(modulo) && <ConsumosMantenimiento modulo={modulo} cliente={cliente} datos={datos} actualizar={actualizar} refrescar={() => setVersion(v => v + 1)} />}
     {modulo === 'estadias' && estadiasActivas && <EstadiaFormulario cliente={cliente} actualizar={actualizar} />}
     {modulo === 'pagos' && pagosActivos && <PagoFormulario pagos={pagos} alGuardar={() => setVersion(v => v + 1)} />}
     {estado.cargando && <p role="status">Cargando información…</p>}
