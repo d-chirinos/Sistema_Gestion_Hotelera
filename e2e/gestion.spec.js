@@ -26,7 +26,7 @@ test('indicadores, saldo y gestión administrativa usan RPC sin escoger hotel', 
   })
   page.on('dialog', dialog => dialog.accept())
   await page.goto('./'); await page.getByRole('button', { name: /Administrador/ }).click(); await page.getByLabel('Correo electrónico').fill('test@example.invalid'); await page.getByLabel('Contraseña', { exact: true }).fill('prueba-local'); await page.getByRole('button', { name: 'Iniciar sesión' }).click()
-  await expect(page.getByText('Mantenimientos sin fecha de fin')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Atención requerida' })).toBeVisible()
   const menu = page.getByRole('navigation', { name: 'Menú principal' })
   await menu.getByRole('button', { name: 'Reservas', exact: true }).click()
   await page.getByRole('button', { name: 'Consultar saldo de reserva' }).click()

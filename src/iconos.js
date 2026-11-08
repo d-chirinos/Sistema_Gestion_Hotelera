@@ -1,0 +1,2 @@
+import { House, Hotel, CalendarDays, BedDouble, DoorOpen, Users, Layers3, ShoppingCart, CreditCard, Wrench, UserRound, BriefcaseBusiness } from 'lucide-react'
+export const ICONOS_MODULO = { dashboard: House, hotel: Hotel, reservas: CalendarDays, estadias: BedDouble, habitacion: DoorOpen, clientes: Users, servicio: Layers3, consumos: ShoppingCart, pagos: CreditCard, mantenimiento: Wrench, empleados: UserRound, cargos: BriefcaseBusiness }
