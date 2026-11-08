@@ -52,3 +52,11 @@ test('rechaza peticiones anónimas antes de contactar servicios', async () => {
   assert.equal(respuesta.status, 401)
   assert.equal(llamadas.length, 0)
 })
+
+test('admite preguntas genéricas variadas y rechaza identificadores personales', async () => {
+  const { pedir, llamadas } = configurar()
+  assert.equal((await pedir({ modo: 'generar', texto: 'Mostrar el total de pagos por estado de reserva' })).status, 200)
+  assert.equal((await pedir({ modo: 'generar', texto: 'Mostrar reservas de Paola Mendoza' })).status, 400)
+  assert.equal((await pedir({ modo: 'generar', texto: 'Mostrar reserva 123456' })).status, 400)
+  assert.equal(llamadas.filter(x => x.url.includes('googleapis')).length, 1)
+})

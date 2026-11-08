@@ -6,3 +6,17 @@ export function crearConsultaIA(cliente) {
     return data
   }
 }
+
+export function crearEjecutorSQL(cliente) {
+  return async sql => {
+    if (typeof sql !== 'string' || !sql.trim() || sql.length > 8000) throw new Error('Introduce una consulta de hasta 8000 caracteres.')
+    const { data, error } = await cliente.functions.invoke('ejecutar-consulta-sql', { body: { sql } })
+    if (error) {
+      let detalle
+      try { detalle = await error.context?.json() } catch { /* respuesta no disponible */ }
+      throw new Error(typeof detalle?.error === 'string' ? detalle.error : 'No se pudo ejecutar la consulta. Comprueba la configuración y vuelve a intentarlo.')
+    }
+    if (!data || !Array.isArray(data.columnas) || !data.columnas.every(c => typeof c === 'string') || !Array.isArray(data.filas) || data.filas.length > 200 || !data.filas.every(f => Array.isArray(f) && f.length === data.columnas.length) || typeof data.sql_ejecutado !== 'string') throw new Error('Respuesta de consulta inválida.')
+    return data
+  }
+}

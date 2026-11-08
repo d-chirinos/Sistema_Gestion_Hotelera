@@ -1,4 +1,4 @@
-// Objetos propuestos para un futuro ejecutor. Todavía no existen en PostgreSQL.
+// Vistas preparadas por la migración del Centro de Consultas.
 export { CATALOGO } from '../../supabase/functions/_shared/catalogo.mjs'
 
 const ejemplo = (categoria, titulo, conceptos, sql, explicacion) => ({ categoria, titulo, conceptos, sql, explicacion })

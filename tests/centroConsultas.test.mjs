@@ -15,6 +15,7 @@ test('CSV escapa valores, preserva cabeceras y neutraliza fórmulas', () => {
   const csv = resultadosCSV(['nombre', 'valor'], [{ nombre: 'Texto, "prueba"', valor: '=HYPERLINK(1)' }, { nombre: null, valor: 10 }])
   assert.match(csv, /"Texto, ""prueba""","'=HYPERLINK\(1\)"/)
   assert.match(csv, /"","10"/)
+  assert.match(resultadosCSV(['id', 'id'], [[1, 2]]), /"1","2"/)
 })
 
 test('invoca Gemini solo con la intención válida y rechaza errores', async () => {

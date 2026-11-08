@@ -5,5 +5,5 @@ export function resultadosCSV(columnas, filas) {
     if ((/^[\s]*[=+@-]/.test(texto) || (texto.length > 0 && texto.charCodeAt(0) < 32))) texto = "'" + texto
     return '"' + texto.replaceAll('"', '""') + '"'
   }
-  return '\ufeff' + [columnas.map(celda).join(','), ...filas.map(fila => columnas.map(c => celda(fila[c])).join(','))].join('\r\n')
+  return '\ufeff' + [columnas.map(celda).join(','), ...filas.map(fila => columnas.map((c, i) => celda(Array.isArray(fila) ? fila[i] : fila[c])).join(','))].join('\r\n')
 }

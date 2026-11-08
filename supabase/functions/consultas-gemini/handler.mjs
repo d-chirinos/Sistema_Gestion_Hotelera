@@ -1,5 +1,5 @@
 import { CATALOGO as esquema } from '../_shared/catalogo.mjs'
-import { PREGUNTAS, normalizarPregunta } from '../_shared/preguntas.mjs'
+import { preguntaGenerica } from '../_shared/preguntas.mjs'
 // Edge Function de generación y explicación. No ejecuta SQL ni usa service_role.
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
 const respuesta = (status, error) => new Response(JSON.stringify({ error }), { status, headers: cors })
@@ -37,8 +37,8 @@ export function crearHandler({ obtenerEnv, fetchImpl, reloj = Date.now }) {
     if (/[\w.+-]+@[\w.-]+\.[a-z]{2,}/i.test(entrada.texto) || /\d{7,}/.test(entrada.texto)) return respuesta(400, 'No incluyas datos personales en la consulta.')
     let texto = entrada.texto.trim()
     if (entrada.modo === 'generar') {
-      const permitida = PREGUNTAS.find(p => normalizarPregunta(p) === normalizarPregunta(texto))
-      if (!permitida) return respuesta(400, 'Utiliza una de las preguntas genéricas disponibles.')
+      const permitida = preguntaGenerica(texto)
+      if (!permitida) return respuesta(400, 'Usa solo términos generales del hotel, sin nombres, cifras ni datos personales.')
       texto = permitida
     }
     if (entrada.modo === 'explicar') {
@@ -52,7 +52,7 @@ export function crearHandler({ obtenerEnv, fetchImpl, reloj = Date.now }) {
       if (palabras.some(p => !permitidos.has(p))) return respuesta(400, 'Usa solo identificadores del catálogo académico para explicar el SQL.')
     }
     const instruccion = entrada.modo === 'generar'
-      ? 'Genera una sola consulta PostgreSQL SELECT o WITH de lectura y una explicación académica en español. Si no se puede resolver, devuelve sql como cadena vacía y explica el motivo. No inventes tablas o columnas.'
+      ? 'Genera una sola consulta PostgreSQL SELECT o WITH de lectura y una explicación académica en español. Si no se puede resolver, devuelve sql como cadena vacía y explica el motivo. No inventes tablas o columnas. Califica todas las tablas como hotel_consultas.nombre. Usa solo funciones COUNT, SUM, AVG, MIN o MAX; no uses CAST, OFFSET, CTE recursivas ni funciones adicionales. Se admiten SELECT, WITH, INNER JOIN, LEFT JOIN, WHERE, GROUP BY, HAVING, ORDER BY y LIMIT.'
       : 'Explica en español el SQL sin afirmar que sea correcto. Explica SELECT, JOIN, WHERE, GROUP BY y orden si aparecen. Los literales fueron omitidos; no los adivines. Devuelve sql como cadena vacía.'
     const prompt = `${instruccion}\nResponde únicamente JSON con las claves sql y explicacion, ambas cadenas. No devuelvas datos ni valores inventados.\n${esquema}\nSolicitud:\n${texto}`
     const gemini = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 2048 } }), signal: AbortSignal.timeout(20000) })

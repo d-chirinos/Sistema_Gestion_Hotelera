@@ -1,4 +1,4 @@
-export const CATALOGO = `Esquema previsto hotel_consultas, con filas siempre limitadas al hotel del administrador:
+export const CATALOGO = `Esquema hotel_consultas, con filas limitadas al hotel del administrador:
 habitacion(id_habitacion bigint PK, tipo_habitacion_id_tipo bigint FK tipo_habitacion.id_tipo, numero text, piso integer, estado text).
 tipo_habitacion(id_tipo bigint PK, nombre text, descripcion text, capacidad integer).
 tarifa_habitacion(id_tarifa bigint PK, tipo_habitacion_id_tipo bigint FK tipo_habitacion.id_tipo, precio_noche numeric).

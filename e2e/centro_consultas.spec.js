@@ -21,7 +21,7 @@ test('el administrador revisa ejemplos y Gemini simulado sin ejecutar SQL', asyn
   await expect(page.getByRole('button', { name: 'Ejecutar consulta' })).toBeDisabled()
   await page.getByRole('tab', { name: 'Consultas preparadas' }).click(); await page.getByRole('button', { name: 'Cargar en editor' }).first().click()
   await expect(page.getByLabel('Consulta PostgreSQL de lectura')).toHaveValue(/hotel_consultas.habitacion/)
-  await page.getByRole('tab', { name: 'Consultar con IA' }).click(); await page.getByLabel('Pregunta en español').selectOption('¿Cuántas reservas tiene cada estado?'); await page.getByRole('button', { name: 'Generar SQL' }).click()
+  await page.getByRole('tab', { name: 'Consultar con IA' }).click(); await page.getByLabel('Pregunta en español').fill('¿Cuántas reservas tiene cada estado?'); await page.getByRole('button', { name: 'Generar SQL' }).click()
   await expect(page.getByText('Consulta simulada para la prueba.')).toBeVisible()
   await expect(page.getByLabel('Consulta PostgreSQL de lectura')).toHaveValue('SELECT estado FROM hotel_consultas.reserva')
   await expect(page.getByRole('button', { name: 'Ejecutar consulta' })).toBeDisabled()
