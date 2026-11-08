@@ -66,7 +66,7 @@ test('el 500 se clasifica por etapa sin exponer datos en registros ni respuesta'
 test('diagnostica configuración y autenticación sin registrar valores o identidad', async () => {
   const { h, registros } = armar({ conectar: valor => crearConexionLectura(valor, () => {}) })
   assert.equal((await h(crearPeticion())).status, 500)
-  assert.equal(registros[0].codigo, 'HM_CONFIG_CONEXION')
+  assert.equal(registros[0].codigo, 'HM_CONFIG_URL')
   const denegada = armar({ conectar: () => { throw Error('no debe conectar') }, fetchImpl: async () => new Response(null, { status: 401 }) })
   assert.equal((await denegada.h(crearPeticion())).status, 401)
   assert.equal(denegada.registros[0].categoria, 'supabase_auth')

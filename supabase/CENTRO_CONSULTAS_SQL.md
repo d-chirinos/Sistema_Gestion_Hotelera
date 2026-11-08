@@ -45,7 +45,13 @@ Después de actualizar la función en el proyecto de pruebas, reproducir una con
 | Etapa o categoría | Significado y comprobación posterior |
 | --- | --- |
 | `configuracion` / `HM_CONFIG_INCOMPLETA` | Falta una variable requerida; revisar los nombres de los secretos sin copiar sus valores. |
-| `configuracion_conexion` / `HM_CONFIG_CONEXION` | La URL no cumple el formato admitido: protocolo PostgreSQL, nombre DNS, usuario lector con sufijo válido y solo `sslmode=require` o `verify-full`. |
+| `configuracion_conexion` / `HM_CONFIG_CONEXION` | Código de versiones anteriores: agrupaba las validaciones de la URL y los fallos síncronos al inicializar el cliente. Por sí solo no distingue la causa. |
+| `configuracion_conexion` / `HM_CONFIG_URL` | La cadena no se puede interpretar como URL. |
+| `configuracion_conexion` / `HM_CONFIG_PROTOCOLO` | El protocolo no es `postgres:` ni `postgresql:`. |
+| `configuracion_conexion` / `HM_CONFIG_HOST` | Falta el host o es una dirección IP literal; se exige un nombre DNS. |
+| `configuracion_conexion` / `HM_CONFIG_USUARIO` | El usuario no se puede decodificar o no coincide con el rol lector y su sufijo opcional de 20 caracteres. |
+| `configuracion_conexion` / `HM_CONFIG_PARAMETROS` | Hay parámetros no admitidos, más de un parámetro, o un valor de `sslmode` distinto de `require` o `verify-full`. |
+| `configuracion_conexion` / `HM_CONFIG_CLIENTE` | El cliente PostgreSQL rechazó la configuración durante su inicialización síncrona; este código no identifica la causa concreta. |
 | `auth_usuario` o `auth_cuenta` | Problema al validar Auth o la vinculación administrativa. `HM_AUTH_SERVICIO` y `HM_CUENTA_RPC` indican fallos de servicio distintos de una credencial o cuenta rechazada. |
 | `conexion_postgresql` / `tls_certificado` o `tls_nombre` | Falló la confianza de la cadena TLS o la coincidencia del nombre; comprobar DNS y CA sin desactivar la validación. |
 | `conexion_postgresql` / `dns`, `red` o `tiempo_agotado` | Falló la resolución, la conexión de red o el plazo de conexión. |

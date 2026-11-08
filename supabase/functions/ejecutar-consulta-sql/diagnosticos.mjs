@@ -2,6 +2,9 @@
 // mensajes, causas, identificadores, consultas, resultados ni configuración.
 const codigos = new Map([
   ['HM_CONFIG_CONEXION', 'configuracion_conexion'],
+  ['HM_CONFIG_URL', 'configuracion_conexion'], ['HM_CONFIG_PROTOCOLO', 'configuracion_conexion'],
+  ['HM_CONFIG_HOST', 'configuracion_conexion'], ['HM_CONFIG_USUARIO', 'configuracion_conexion'],
+  ['HM_CONFIG_PARAMETROS', 'configuracion_conexion'], ['HM_CONFIG_CLIENTE', 'configuracion_conexion'],
   ['HM_CONFIG_INCOMPLETA', 'configuracion_incompleta'],
   ['HM_AUTH_RECHAZADA', 'supabase_auth'],
   ['HM_AUTH_SERVICIO', 'supabase_auth_servicio'],
