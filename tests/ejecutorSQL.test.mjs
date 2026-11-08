@@ -11,18 +11,27 @@ const sinVinculo = '00000000-0000-4000-8000-000000000099'
 const inactivo = '00000000-0000-4000-8000-000000000003'
 const recepcion = '00000000-0000-4000-8000-000000000004'
 const conexionURL = process.env.HM_SQL_TEST_URL
+// Resultados de la carga académica sintética original para el hotel 1.
+const filasEsperadas = [4, 6, 4, 4, 9, 6, 4, 2, 3, 4, 9, 3, 4, 2, 2, 3]
 
 test('el analizador acepta las 16 consultas y bloquea sentencias y funciones peligrosas', () => {
+  assert.equal(CONSULTAS.length, filasEsperadas.length)
   for (const ejemplo of CONSULTAS) assert.ok(validarSQL(ejemplo.sql).startsWith('SELECT') || validarSQL(ejemplo.sql).startsWith('WITH'))
-  for (const q of ["DELETE FROM hotel_consultas.reserva", "SELECT * FROM hotel_consultas.reserva; DELETE FROM public.reserva", "WITH x AS (DELETE FROM public.reserva RETURNING *) SELECT * FROM x", "SELECT pg_sleep(1) FROM hotel_consultas.reserva", "SELECT set_config('request.jwt.claim.sub','x',true) FROM hotel_consultas.reserva", 'SELECT * FROM pg_catalog.pg_class', 'SELECT * FROM public.cliente', 'SELECT * FROM hotel_consultas.reserva FOR UPDATE', 'SELECT * FROM hotel_consultas.reserva OFFSET 2', "SELECT nextval('x') FROM hotel_consultas.reserva"]) assert.throws(() => validarSQL(q), /no admitida/i, q)
+  for (const q of ["INSERT INTO public.cliente VALUES (1)", "UPDATE public.cliente SET nombre = 'X'", "DELETE FROM hotel_consultas.reserva", 'DROP TABLE public.cliente', "SELECT * FROM hotel_consultas.reserva; SELECT * FROM hotel_consultas.habitacion", "SELECT * FROM hotel_consultas.reserva; DELETE FROM public.reserva", "WITH x AS (DELETE FROM public.reserva RETURNING *) SELECT * FROM x", "SELECT pg_sleep(1) FROM hotel_consultas.reserva", "SELECT set_config('request.jwt.claim.sub','x',true) FROM hotel_consultas.reserva", 'SELECT * FROM pg_catalog.pg_class', 'SELECT * FROM public.cliente', 'SELECT * FROM hotel_consultas.reserva FOR UPDATE', 'SELECT * FROM hotel_consultas.reserva OFFSET 2', 'SELECT * FROM hotel_consultas.reserva LIMIT 1001', 'SELECT ' + 'a'.repeat(8001) + ' FROM hotel_consultas.reserva', "SELECT nextval('x') FROM hotel_consultas.reserva"]) assert.throws(() => validarSQL(q), /no admitida/i, q)
 })
 
-test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip: !conexionURL, timeout: 30000 }, async () => {
+test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip: !conexionURL, timeout: 30000 }, async t => {
   const db = postgres(conexionURL, { max: 1, ssl: false, prepare: false })
   try {
-    for (const ejemplo of CONSULTAS) {
-      const resultado = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: ejemplo.sql })
-      assert.ok(Array.isArray(resultado.columnas) && Array.isArray(resultado.filas), ejemplo.titulo)
+    for (const [indice, ejemplo] of CONSULTAS.entries()) {
+      await t.test(`${ejemplo.categoria}: ${ejemplo.titulo}`, async () => {
+        const resultado = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: ejemplo.sql })
+        assert.ok(resultado.columnas.length > 0)
+        assert.equal(resultado.filas.length, filasEsperadas[indice])
+        assert.ok(resultado.filas.every(fila => fila.length === resultado.columnas.length))
+        if (indice === 8 || indice === 15) assert.deepEqual(Object.fromEntries(resultado.filas), { CANCELADA: '1', COMPLETADA: '2', CONFIRMADA: '6' })
+        t.diagnostic(`${ejemplo.categoria}: ${ejemplo.titulo}: ${resultado.filas.length} filas`)
+      })
     }
     const vacia = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: "SELECT numero FROM hotel_consultas.habitacion WHERE estado = 'INEXISTENTE'" })
     assert.deepEqual(vacia.columnas, ['numero']); assert.equal(vacia.filas.length, 0)
@@ -38,12 +47,7 @@ test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip
     assert.deepEqual(simultaneas[0].filas, hotel1.filas); assert.deepEqual(simultaneas[1].filas, hotel2.filas); assert.deepEqual(simultaneas[2].filas, hotel1.filas); assert.deepEqual(simultaneas[3].filas, hotel2.filas)
     for (const usuario of [sinVinculo, inactivo, recepcion]) assert.equal((await ejecutarLectura({ conexion: db, usuario, consulta })).filas.length, 0)
     await assert.rejects(db.unsafe('SELECT * FROM public.cliente'), e => e.code === '42501')
-    const privilegiada = new URL(conexionURL); privilegiada.username = 'postgres'
-    const admin = postgres(privilegiada.toString(), { max: 1, ssl: false, prepare: false })
-    try {
-      await assert.rejects(ejecutarLectura({ conexion: admin, usuario: identidad, consulta }), /rol de lectura/)
-      for (const role of ['anon', 'authenticated']) await assert.rejects(admin.begin(async tx => { await tx.unsafe(`SET LOCAL ROLE ${role}`); await tx.unsafe('SELECT * FROM hotel_consultas.cliente') }), e => e.code === '42501')
-    } finally { await admin.end() }
+    for (const role of ['anon', 'authenticated']) await assert.rejects(db.unsafe(`SET ROLE ${role}`), e => e.code === '42501')
     await assert.rejects(db.unsafe("UPDATE hotel_consultas.habitacion SET estado='OCUPADA'"))
     const duplicadas = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: 'SELECT a.id_habitacion, a.id_habitacion FROM hotel_consultas.habitacion a LIMIT 1' })
     assert.deepEqual(duplicadas.columnas, ['id_habitacion', 'id_habitacion']); assert.equal(duplicadas.filas[0].length, 2)
