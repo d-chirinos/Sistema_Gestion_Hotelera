@@ -5,7 +5,7 @@ import { SECCIONES, resumenHabitaciones, validarDatosHotel } from '../src/supaba
 const hotel = { hotel: [{ id_hotel: 1 }], habitacion: [{ hotel_id_hotel: 1, estado: 'DISPONIBLE' }], tarifa_habitacion: [{ hotel_id_hotel: 1 }], servicio: [{ hotel_id_hotel: 1 }], tipo_habitacion: [] }
 
 test('el menú solo habilita las secciones con RPC aprobada', () => {
-  assert.deepEqual(SECCIONES.filter(s => s.disponible).map(s => s.id), ['dashboard', 'hotel', 'habitacion', 'servicio'])
+  assert.deepEqual(SECCIONES.filter(s => s.disponible).map(s => s.id), ['dashboard', 'consultas_sql', 'hotel', 'habitacion', 'servicio'])
   for (const id of ['reservas', 'clientes', 'pagos', 'estadias', 'empleados', 'mantenimiento', 'consumos', 'cargos']) assert.equal(SECCIONES.find(s => s.id === id).disponible, false)
 })
 

@@ -1,5 +1,6 @@
 export const SECCIONES = [
   { id: 'dashboard', titulo: 'Dashboard', disponible: true },
+  { id: 'consultas_sql', titulo: 'Consultas SQL', disponible: true },
   { id: 'hotel', titulo: 'Mi hotel', disponible: true },
   { id: 'reservas', titulo: 'Reservas', disponible: false },
   { id: 'estadias', titulo: 'Estadías', disponible: false },
