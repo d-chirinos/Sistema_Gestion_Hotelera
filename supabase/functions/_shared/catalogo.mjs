@@ -11,4 +11,9 @@ consumo_servicio(id_consumo bigint PK, estadia_id_estadia bigint FK estadia.id_e
 empleado(id_empleado bigint PK, cargo_id_cargo bigint FK cargo.id_cargo, nombre text, apellido text, fecha_ingreso date).
 cargo(id_cargo bigint PK, nombre text): solamente cargos con empleados del hotel.
 mantenimiento(id_mantenimiento bigint PK, habitacion_id_habitacion bigint FK habitacion.id_habitacion, empleado_id_empleado bigint FK empleado.id_empleado, fecha_inicio date, fecha_fin date, tipo text, costo numeric).
+Literales definidos por restricciones CHECK (se distinguen mayúsculas y minúsculas):
+habitacion.estado: 'DISPONIBLE', 'OCUPADA', 'MANTENIMIENTO'.
+reserva.estado: 'CONFIRMADA', 'COMPLETADA', 'CANCELADA'.
+pago.tipo_pago: 'ADELANTO', 'ORDINARIO' o NULL para históricos.
+pago.metodo_pago y mantenimiento.tipo son texto libre: no tienen un catálogo cerrado garantizado; no inventes valores.
 No hay documentos, correo, teléfono, salarios, cuenta_empleado ni auth.users. Los importes se interpretan en PEN.`
