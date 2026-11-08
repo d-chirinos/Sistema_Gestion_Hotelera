@@ -1,4 +1,5 @@
 import { isIP } from 'node:net'
+import { crearError } from './diagnosticos.mjs'
 
 // No incluir la URL en las excepciones: puede contener la contraseña del rol.
 export function crearConexionLectura(url, postgres) {
@@ -12,6 +13,6 @@ export function crearConexionLectura(url, postgres) {
     // El modo explícito prevalece sobre sslmode=require de la URL y verifica CA y hostname.
     return postgres(url, { max: 1, prepare: false, connect_timeout: 5, ssl: 'verify-full' })
   } catch {
-    throw new Error('Configuración de conexión de lectura no válida.')
+    throw crearError('HM_CONFIG_CONEXION', 'Configuración de conexión de lectura no válida.')
   }
 }

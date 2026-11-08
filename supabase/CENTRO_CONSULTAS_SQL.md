@@ -35,3 +35,25 @@ La compatibilidad es **condicionada** a que el runtime de Edge pueda resolver y 
 5. Si falla TLS, revisar la cadena de certificados y la conectividad del runtime de Supabase. No sustituir `verify-full` por un modo que omita la comprobación del certificado. La comprobación con el Session Pooler real solo puede hacerse después del despliegue autorizado.
 
 Para repetir la prueba aislada en Linux se requieren Node.js, OpenSSL, PostgreSQL con `initdb`/`pg_ctl`, PgBouncer y, opcionalmente, Deno. Ejecutar `PG_BIN=<directorio-bin-de-postgresql> PGBOUNCER_BIN=<ruta-a-pgbouncer> bash supabase/tests/centro_pooler_local.sh`. Puede indicarse `DENO_BIN=<ruta-a-deno>` para comprobar también el runtime Deno. El script crea una CA y una base temporales, sin claves reales, y las elimina al terminar. La prueba de nombre TLS incorrecto utiliza IPv6 de loopback (`ip6-localhost`).
+
+## Diagnóstico seguro de la Edge Function
+
+La versión con diagnósticos escribe eventos JSON `ejecutar_consulta_sql.error` en los logs de `ejecutar-consulta-sql`. Cada evento contiene únicamente `evento`, `etapa`, `categoria` y `codigo`, elegidos de listas internas. No se registran excepciones completas, mensajes del proveedor, SQL, datos de resultados, UUID, JWT, contraseñas ni cadenas de conexión. `ejecutar_consulta_sql.cierre_error` indica un fallo al cerrar la conexión y no implica por sí solo que la consulta haya fallado. El navegador sigue recibiendo mensajes genéricos.
+
+Después de actualizar la función en el proyecto de pruebas, reproducir una consulta y abrir sus registros de Edge Functions alrededor de la hora de la solicitud POST. Buscar `ejecutar_consulta_sql.error` y revisar:
+
+| Etapa o categoría | Significado y comprobación posterior |
+| --- | --- |
+| `configuracion` / `HM_CONFIG_INCOMPLETA` | Falta una variable requerida; revisar los nombres de los secretos sin copiar sus valores. |
+| `configuracion_conexion` / `HM_CONFIG_CONEXION` | La URL no cumple el formato admitido: protocolo PostgreSQL, nombre DNS, usuario lector con sufijo válido y solo `sslmode=require` o `verify-full`. |
+| `auth_usuario` o `auth_cuenta` | Problema al validar Auth o la vinculación administrativa. `HM_AUTH_SERVICIO` y `HM_CUENTA_RPC` indican fallos de servicio distintos de una credencial o cuenta rechazada. |
+| `conexion_postgresql` / `tls_certificado` o `tls_nombre` | Falló la confianza de la cadena TLS o la coincidencia del nombre; comprobar DNS y CA sin desactivar la validación. |
+| `conexion_postgresql` / `dns`, `red` o `tiempo_agotado` | Falló la resolución, la conexión de red o el plazo de conexión. |
+| `autenticacion_postgresql` (`28P01`, `28000` o `SASL_SIGNATURE_MISMATCH`) | PostgreSQL o el pooler rechazó la autenticación; comprobar el usuario y el secreto sin mostrarlos. |
+| `verificacion_rol` / `HM_ROL_INSEGURO` | La identidad o los atributos de la conexión no cumplen el rol de lectura requerido. No se registra el rol recibido. |
+| `contexto_identidad` | La función estaba fijando el contexto transaccional cuando ocurrió el fallo; la categoría y el código pueden indicar red o permisos. |
+| `permisos_postgresql` (`42501`) | PostgreSQL denegó una operación; la etapa precisa si ocurrió al comprobar el rol, fijar contexto o consultar. |
+| `ejecucion_sql` / `sql_invalido` o `tiempo_agotado` | El fallo ocurrió al ejecutar o validar la consulta; revisar columnas y límites sin copiar información sensible a los logs. |
+| `postgresql_interno` (`XX000`) o `NO_IDENTIFICADO` | El código no permite determinar por sí solo la causa. No se registran mensajes del proveedor, que podrían contener credenciales o datos. |
+
+Las categorías y códigos seguros del evento pueden compartirse para analizar el fallo; no compartir el valor del secreto, la URL, el token ni logs completos sin revisarlos. Estos diagnósticos no cambian TLS, los permisos ni las vistas.
