@@ -3,7 +3,7 @@ import { validarDatosHotel } from './vista.js'
 const errorSesion = error => error?.status === 401 || ['PGRST301', 'PGRST303', 'bad_jwt', 'session_not_found', 'refresh_token_not_found'].includes(error?.code)
 
 // Las solicitudes obsoletas nunca pueden restaurar datos después de un cambio de sesión.
-export function crearControlSesion(servicio, publicar) {
+export function crearControlSesion(servicio, publicar, { accesoEmpleados = false } = {}) {
   let version = 0
   let cerrado = false
   let sesionActual = null
@@ -21,11 +21,17 @@ export function crearControlSesion(servicio, publicar) {
       const cuenta = await servicio.cuenta()
       if (cerrado || ticket !== version) return
       if (!cuenta) { emitir({ estado: 'sin-vinculo' }); return }
-      if (cuenta.rol_sistema !== 'ADMINISTRADOR') { emitir({ estado: 'sin-permiso', cuenta }); return }
-      const datos = await servicio.recursos()
+      let perfil = cuenta
+      if (cuenta.rol_sistema !== 'ADMINISTRADOR') {
+        if (!accesoEmpleados || !['RECEPCIONISTA', 'MANTENIMIENTO'].includes(cuenta.rol_sistema)) { emitir({ estado: 'sin-permiso', cuenta }); return }
+        perfil = await servicio.perfilOperativo()
+        if (cerrado || ticket !== version) return
+        if (String(perfil.empleado_id) !== String(cuenta.empleado_id) || String(perfil.hotel_id) !== String(cuenta.hotel_id) || perfil.rol_sistema !== cuenta.rol_sistema) throw new Error('Perfil inconsistente')
+      }
+      const datos = await servicio.recursos(perfil)
       if (cerrado || ticket !== version) return
       if (!validarDatosHotel(datos, cuenta.hotel_id)) throw new Error('Hotel inconsistente')
-      emitir({ estado: 'listo', cuenta, datos })
+      emitir({ estado: 'listo', cuenta: perfil, datos })
     } catch (error) {
       if (cerrado || ticket !== version) return
       if (errorSesion(error)) {

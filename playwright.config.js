@@ -7,6 +7,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:5173/Sistema_Gestion_Hotelera/',
     headless: true,
+    reducedMotion: 'reduce',
     launchOptions: env.CHROMIUM_PATH ? { executablePath: env.CHROMIUM_PATH } : {},
   },
   webServer: {

@@ -128,3 +128,21 @@ test('la interfaz no recibe datos si una fila pertenece a otro hotel', async () 
   assert.equal(s.estados.at(-1).datos, undefined)
   s.control.detener()
 })
+
+test('el acceso operativo requiere perfil coherente y se habilita solo por configuración', async () => {
+  for (const coincide of [true, false]) {
+    const estados = [], cuentaOperativa = { empleado_id: 2, hotel_id: 1, rol_sistema: 'RECEPCIONISTA' }
+    const servicio = { auth: { onAuthStateChange() { return { data: { subscription: { unsubscribe() {} } } } }, async getSession() { return { data: { session: sesion } } } }, cuenta: async () => cuentaOperativa, perfilOperativo: async () => ({ ...cuentaOperativa, hotel_id: coincide ? 1 : 2, cargo: 'Recepción' }), recursos: async () => datos }
+    const control = crearControlSesion(servicio, x => estados.push(x), { accesoEmpleados: true }); control.iniciar(); await tick(); await tick()
+    assert.equal(estados.at(-1).estado, coincide ? 'listo' : 'error'); control.detener()
+  }
+})
+
+test('el catálogo de mantenimiento no solicita tarifas ni servicios', async () => {
+  const llamadas = []
+  const servicio = crearServicio({ auth: {}, rpc: (nombre, args) => ({ range: async () => { llamadas.push([nombre, args.p_modulo]); return { data: args.p_modulo === 'hotel' ? [{ id_hotel: 1 }] : [], error: null } } }) })
+  const resultado = await servicio.recursos({ rol_sistema: 'MANTENIMIENTO' })
+  assert.deepEqual(resultado.tarifa_habitacion, []); assert.deepEqual(resultado.servicio, [])
+  assert.deepEqual(llamadas.map(x => x[1]).sort(), ['habitacion', 'hotel', 'tipo_habitacion'].sort())
+  assert.ok(llamadas.every(x => x[0] === 'consultar_operativo'))
+})

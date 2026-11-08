@@ -46,7 +46,7 @@ function Inicio({ modulo, cliente, datos, actualizar }) {
     {mensaje && <p role="status">{mensaje}</p>}
   </div>
 }
-function Cierre({ cliente, datos, actualizar }) {
+function Cierre({ cliente, datos, actualizar, permitirLiberar }) {
   const [id, setId] = useState(''), [costo, setCosto] = useState(''), [habitacion, setHabitacion] = useState('')
   const [ocupado, setOcupado] = useState(false), [error, setError] = useState('')
   async function operar(e, nombre, args, confirmacion) {
@@ -63,11 +63,11 @@ function Cierre({ cliente, datos, actualizar }) {
   return <div className="room-list reservations-list real-list"><div className="room-list-header"><div><h2>Finalizar intervención y liberar habitación</h2><p>Dos acciones separadas. Finalizar no cambia automáticamente la disponibilidad.</p></div></div>
     <form onSubmit={e => { if (!/^[1-9]\d*$/.test(id) || !/^\d{1,8}(\.\d{1,2})?$/.test(costo)) { e.preventDefault(); setError('Indica un ID y un costo válido.'); return } void operar(e, 'finalizar_mantenimiento_hotel', { p_id: id, p_costo: costo, p_confirmacion: true }, '¿Confirmas que esta intervención está terminada y que el costo indicado es correcto?') }}>
       <label className="reservation-form-field"><span>ID de intervención</span><input required inputMode="numeric" value={id} onChange={e => setId(e.target.value)} /></label><label className="reservation-form-field"><span>Costo confirmado</span><input required inputMode="decimal" value={costo} onChange={e => setCosto(e.target.value)} /></label><button className="reservation-save-button" type="submit" disabled={ocupado}>Finalizar mantenimiento</button></form>
-    <form onSubmit={e => { if (!habitacion) { e.preventDefault(); return } void operar(e, 'liberar_habitacion_mantenimiento', { p_habitacion: habitacion }, '¿Confirmas que la habitación puede volver a estar disponible?') }}>
-      <label className="reservation-form-field"><span>Habitación a liberar</span><select required value={habitacion} onChange={e => setHabitacion(e.target.value)}><option value="">Selecciona</option>{datos.habitacion.map(h => <option key={h.id_habitacion} value={h.id_habitacion}>{h.numero}</option>)}</select></label><button className="reservation-save-button" type="submit" disabled={ocupado}>Liberar habitación</button></form>
+    {permitirLiberar && <form onSubmit={e => { if (!habitacion) { e.preventDefault(); return } void operar(e, 'liberar_habitacion_mantenimiento', { p_habitacion: habitacion }, '¿Confirmas que la habitación puede volver a estar disponible?') }}>
+      <label className="reservation-form-field"><span>Habitación a liberar</span><select required value={habitacion} onChange={e => setHabitacion(e.target.value)}><option value="">Selecciona</option>{datos.habitacion.map(h => <option key={h.id_habitacion} value={h.id_habitacion}>{h.numero}</option>)}</select></label><button className="reservation-save-button" type="submit" disabled={ocupado}>Liberar habitación</button></form>}
     {error && <p role="alert">{error}</p>}
   </div>
 }
-export default function ConsumosMantenimiento({ modulo, cliente, datos, actualizar, refrescar }) {
-  return <><Inicio modulo={modulo} cliente={cliente} datos={datos} actualizar={completo => completo ? actualizar() : refrescar()} />{modulo === 'mantenimiento' && <Cierre cliente={cliente} datos={datos} actualizar={actualizar} />}</>
+export default function ConsumosMantenimiento({ modulo, cliente, datos, actualizar, refrescar, permitirLiberar }) {
+  return <><Inicio modulo={modulo} cliente={cliente} datos={datos} actualizar={completo => completo ? actualizar() : refrescar()} />{modulo === 'mantenimiento' && <Cierre cliente={cliente} datos={datos} actualizar={actualizar} permitirLiberar={permitirLiberar} />}</>
 }

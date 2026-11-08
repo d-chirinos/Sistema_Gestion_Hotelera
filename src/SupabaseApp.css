@@ -52,3 +52,4 @@
 .real-cotizador-acciones { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
 .real-cotizador-acciones span { color: #728197; font-size: 12px; }
 @media(max-width:650px) { .real-cotizador-grid { grid-template-columns: 1fr; } .real-cotizador-acciones { align-items: flex-start; flex-direction: column; } }
+.real-action-launch{display:inline-flex;margin:0 10px 16px 0}.real-dialog::backdrop{background:rgba(13,27,45,.55);backdrop-filter:blur(3px)}.real-dialog .real-list,.real-dialog .reservations-list{box-shadow:none;border:0;margin:0}.real-dialog .room-list-header{padding-left:0;padding-right:0}

@@ -31,26 +31,29 @@ def sql(text, ok=True):
 def sesion(user, consulta, ok=True):
     return sql("begin; set local role authenticated; select set_config('request.jwt.claim.sub','" + user + "',true); " + consulta + '; rollback;', ok)
 
-ids = [f'00000000-0000-4000-8000-{n:012d}' for n in range(1, 6)]
+ids = [f'00000000-0000-4000-8000-{n:012d}' for n in range(1, 8)]
 if sql("select not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','v','m','f')) and not exists(select 1 from pg_namespace where nspname in ('auth','extensions'))")[0] != 't':
     raise SystemExit('La base no está vacía')
 sql("create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$; create schema extensions;")
 for f in ('supabase/migrations/20261107000000_hotelmanager_estructura_inicial.sql', 'supabase/migrations/20261107010000_consultas_seguras.sql', 'supabase/migrations/20261107020000_reservas_seguras.sql', 'supabase/demo/datos_academicos_sinteticos.sql'):
     sql(Path(f).read_text())
-sql('insert into auth.users values ' + ','.join("('" + u + "')" for u in ids) + "; insert into public.cuenta_empleado values " + ','.join(f"('{ids[n-1]}',{emp},'{rol}',{activo},now())" for n, emp, rol, activo in [(1, 1, 'ADMINISTRADOR', 'true'), (2, 2, 'RECEPCIONISTA', 'true'), (3, 3, 'ADMINISTRADOR', 'false'), (5, 5, 'ADMINISTRADOR', 'true')]))
+sql('insert into auth.users values ' + ','.join("('" + u + "')" for u in ids) + "; insert into public.cuenta_empleado values " + ','.join(f"('{ids[n-1]}',{emp},'{rol}',{activo},now())" for n, emp, rol, activo in [(1, 1, 'ADMINISTRADOR', 'true'), (2, 2, 'RECEPCIONISTA', 'true'), (3, 3, 'ADMINISTRADOR', 'false'), (5, 5, 'ADMINISTRADOR', 'true'), (6, 4, 'MANTENIMIENTO', 'true'), (7, 6, 'RECEPCIONISTA', 'true')]))
 tables = ['hotel', 'cargo', 'tipo_habitacion', 'cliente', 'empleado', 'habitacion', 'tarifa_habitacion', 'servicio', 'reserva', 'estadia', 'mantenimiento', 'pago', 'consumo_servicio', 'cuenta_empleado']
 def snapshot():
     return [json.loads(sql(f"select coalesce(jsonb_agg(x order by x::text),'[]'::jsonb) from (select to_jsonb(t) x from public.{t} t) z")[0]) for t in tables]
 before = snapshot()
-assert sum(map(len, before[:-1])) == 106 and len(before[-1]) == 4
-for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql','supabase/migrations/20261107070000_altas_administrativas.sql','supabase/migrations/20261107080000_indicadores_y_gestion.sql','supabase/migrations/20261107090000_clientes_y_reservas_hotel.sql','supabase/migrations/20261107100000_alta_cliente_primera_reserva.sql'):
+assert sum(map(len, before[:-1])) == 106 and len(before[-1]) == 6
+for f in ('supabase/migrations/20261107030000_operaciones_lectura.sql','supabase/migrations/20261107040000_pagos_y_precios.sql','supabase/migrations/20261107050000_estadias_seguras.sql','supabase/migrations/20261107060000_consumos_mantenimiento.sql','supabase/migrations/20261107070000_altas_administrativas.sql','supabase/migrations/20261107080000_indicadores_y_gestion.sql','supabase/migrations/20261107090000_clientes_y_reservas_hotel.sql','supabase/migrations/20261107100000_alta_cliente_primera_reserva.sql','supabase/migrations/20261107110000_acceso_operativo_lectura.sql','supabase/migrations/20261107120000_escrituras_operativas.sql'):
     sql(Path(f).read_text())
 assert snapshot() == before, 'La migración cambió registros existentes'
 assert sql("select has_function_privilege('anon','public.consultar_operaciones_hotel(text)','EXECUTE'), has_function_privilege('authenticated','public.consultar_operaciones_hotel(text)','EXECUTE'), has_table_privilege('authenticated','public.pago','INSERT')")[0] == 'f|t|f'
 for firma in ('public.registrar_pago_reserva(bigint,numeric,text,uuid)', 'public.actualizar_tarifa_hotel(bigint,numeric,numeric)', 'public.actualizar_precio_servicio(bigint,numeric,numeric)', 'public.registrar_checkin(bigint)', 'public.registrar_checkout(bigint)'):
     assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0] == 'f|t'
 for user in ids[1:4]:
-    for command in ("select * from public.consultar_operaciones_hotel('pagos')", "select * from public.registrar_pago_reserva(1,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000001')", "select * from public.actualizar_tarifa_hotel(1,100,101)", "select * from public.registrar_checkin(7)", "select * from public.registrar_checkout(5)"):
+    for command in ("select * from public.consultar_operaciones_hotel('pagos')", "select * from public.actualizar_tarifa_hotel(1,100,101)"):
+        sesion(user, command, False)
+for user in ids[2:4]:
+    for command in ("select * from public.registrar_pago_reserva(1,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000001')", "select * from public.registrar_checkin(7)", "select * from public.registrar_checkout(5)"):
         sesion(user, command, False)
 sql("set role anon; select * from public.consultar_operaciones_hotel('pagos')", False)
 sesion(ids[0], 'select * from public.pago', False)
@@ -115,7 +118,7 @@ set local role authenticated; select set_config('request.jwt.claim.sub','""" + i
 # Consumo y mantenimiento nuevos usan IDs aleatorios como identificadores idempotentes.
 for firma in ('public.registrar_consumo_estadia(bigint,bigint,integer,numeric,bigint)', 'public.iniciar_mantenimiento_hotel(bigint,text,bigint)', 'public.finalizar_mantenimiento_hotel(bigint,numeric,boolean)', 'public.liberar_habitacion_mantenimiento(bigint)'):
     assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0]=='f|t'
-for user in ids[1:4]:
+for user in ids[2:4]:
     sesion(user, 'select * from public.registrar_consumo_estadia(5,2,1,20,2305843009213694001)', False)
     sesion(user, "select * from public.iniciar_mantenimiento_hotel(1,'Prueba',2305843009213694002)", False)
     sesion(user, 'select * from public.finalizar_mantenimiento_hotel(2305843009213694002,0,true)', False)
@@ -210,6 +213,7 @@ for firma in ('public.listar_clientes_mi_hotel()', 'public.detalle_cliente_mi_ho
 for user in ids[1:4]:
     sesion(user,'select * from public.listar_clientes_mi_hotel()',False)
     sesion(user,'select * from public.detalle_cliente_mi_hotel(1)',False)
+for user in ids[2:4]:
     sesion(user,'select * from public.crear_reserva_cliente_conocido(1,1,current_date+300,current_date+302,100,4503599627370501)',False)
 out,_=sesion(ids[0], 'select count(*) from public.detalle_cliente_mi_hotel(8)')
 assert '\n0\n' in out
@@ -234,7 +238,7 @@ sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_ha
 # Un cliente nuevo y su primera reserva se crean o revierten conjuntamente.
 firma='public.crear_cliente_y_primera_reserva(text,text,text,text,text,bigint,date,date,numeric,bigint)'
 assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0]=='f|t'
-for user in ids[1:4]:
+for user in ids[2:4]:
     sesion(user,"select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO',1,current_date+500,current_date+502,100,4503599627370601)",False)
 sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99031,1,1,'TEST-99031','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO-1',99031,current_date+500,current_date+502,100,4503599627370601); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO-1',99031,current_date+500,current_date+502,100,4503599627370601); reset role; do $$begin if (select count(*) from public.cliente where documento='DEMO-NUEVO-1')<>1 or not exists(select 1 from public.reserva where id_reserva=4503599627370601 and total_estimado=200) then raise exception 'Alta inconsistente'; end if; end$$; rollback;""")
 # Cambiar los datos con la misma clave no reutiliza ni modifica el cliente.
@@ -250,6 +254,47 @@ assert 'No se pudo completar la solicitud; revise los datos' in err_historico
 sesion(ids[0],"select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO',7,current_date+500,current_date+502,100,4503599627370602)",False)
 sesion(ids[0],"select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-NUEVO',1,current_date+502,current_date+500,100,4503599627370602)",False)
 sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99032,1,1,'TEST-99032','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[0]+"""',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Local','DEMO','SINTETICO','DEMO-ROLLBACK',99032,current_date+500,current_date+502,100,4503599627370603); select 1/0; rollback;""",False)
+# Permisos operativos por rol de sistema; la cuenta y el cargo no conceden escrituras.
+for firma in ('public.mi_perfil_operativo()', 'public.consultar_operativo(text)', 'public.detalle_cliente_operativo(bigint)', 'public.cotizar_operativo(bigint,date,date)'):
+    assert sql(f"select has_function_privilege('anon','{firma}','EXECUTE'),has_function_privilege('authenticated','{firma}','EXECUTE')")[0]=='f|t'
+for user in (ids[2],ids[3],ids[0]):
+    sesion(user,"select * from public.consultar_operativo('habitacion')",False)
+for recurso in ('hotel','habitacion','tipo_habitacion','tarifa_habitacion','servicio','reservas','clientes','estadias','pagos','consumos'):
+    sesion(ids[1],f"select * from public.consultar_operativo('{recurso}')")
+for recurso in ('mantenimiento','empleados','cargos'):
+    sesion(ids[1],f"select * from public.consultar_operativo('{recurso}')",False)
+for recurso in ('hotel','habitacion','tipo_habitacion','mantenimiento'):
+    sesion(ids[5],f"select * from public.consultar_operativo('{recurso}')")
+for recurso in ('reservas','clientes','pagos','consumos','servicio','tarifa_habitacion','empleados'):
+    sesion(ids[5],f"select * from public.consultar_operativo('{recurso}')",False)
+out,_=sesion(ids[1],"select string_agg(x->>'id_habitacion',',' order by (x->>'id_habitacion')::bigint) from public.consultar_operativo('habitacion') x")
+assert '\n1,2,3,4,5,6\n' in out
+out,_=sesion(ids[6],"select string_agg(x->>'id_habitacion',',' order by (x->>'id_habitacion')::bigint) from public.consultar_operativo('habitacion') x")
+assert '\n7,8,9,10,11,12\n' in out
+out,_=sesion(ids[6], 'select count(*) from public.detalle_cliente_operativo(2)')
+assert '\n0\n' in out
+out,_=sesion(ids[5],"select string_agg(x->>'id_habitacion',',' order by (x->>'id_habitacion')::bigint) from public.consultar_operativo('habitacion') x")
+assert '\n1,2,3,4,5,6\n' in out
+out,_=sesion(ids[1], 'select count(*) from public.detalle_cliente_operativo(8)')
+assert '\n0\n' in out
+sesion(ids[5], 'select * from public.detalle_cliente_operativo(1)',False)
+sesion(ids[1], 'select * from public.cotizar_operativo(7,current_date+300,current_date+302)',False)
+sesion(ids[5], 'select * from public.cotizar_operativo(1,current_date+300,current_date+302)',False)
+sesion(ids[5], "select * from public.iniciar_mantenimiento_hotel(1,'Prueba',2305843009213694002)",False)
+sesion(ids[1], 'select * from public.pago',False)
+# Escrituras según rol: recepción opera solo su hotel y mantenimiento no cobra ni libera habitaciones.
+sesion(ids[1], "select * from public.registrar_pago_reserva(1,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000011')")
+sesion(ids[1], 'select * from public.registrar_consumo_estadia(5,2,1,20,2305843009213694011)')
+sesion(ids[1], 'select * from public.registrar_checkout(5)')
+sesion(ids[1], "select * from public.registrar_pago_reserva(3,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000011')",False)
+sesion(ids[5], "select * from public.registrar_pago_reserva(1,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000011')",False)
+sesion(ids[5], 'select * from public.registrar_consumo_estadia(5,2,1,20,2305843009213694011)',False)
+sesion(ids[1], "select * from public.iniciar_mantenimiento_hotel(1,'Prueba',2305843009213694012)",False)
+sesion(ids[5], 'select * from public.liberar_habitacion_mantenimiento(6)',False)
+_,err_autor=sql("""begin; update public.estadia set empleado_id_empleado=1 where id_estadia=5; set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[1]+"""',true); select * from public.registrar_checkout(5); rollback;""",False)
+assert 'revisión administrativa' in err_autor
+sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99041,1,1,'TEST-99041','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[5]+"""',true); select * from public.iniciar_mantenimiento_hotel(99041,'Prueba',2305843009213694012); select * from public.finalizar_mantenimiento_hotel(2305843009213694012,0,true); reset role; do $$begin if (select estado from public.habitacion where id_habitacion=99041)<>'MANTENIMIENTO' then raise exception 'Liberación automática indebida'; end if; end$$; rollback;""")
+sql("""begin; insert into public.habitacion(id_habitacion,hotel_id_hotel,tipo_habitacion_id_tipo,numero,estado) values(99042,1,1,'TEST-99042','DISPONIBLE'); set local role authenticated; select set_config('request.jwt.claim.sub','"""+ids[1]+"""',true); select * from public.crear_cliente_y_primera_reserva('Prueba','Recepción','DEMO','SINTETICO','DEMO-RECEPCION',99042,current_date+600,current_date+602,100,4503599627370611); rollback;""")
 assert snapshot() == before, 'Las pruebas transaccionales modificaron datos'
 # Dos clientes concurrentes, misma clave y solicitud. Ambas respuestas deben corresponder al mismo pago.
 cmd = f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{ids[0]}',true); select id_pago,repetido from public.registrar_pago_reserva(7,10,'EFECTIVO','aaaaaaaa-0000-4000-8000-000000000003'); select pg_sleep(1); commit;"

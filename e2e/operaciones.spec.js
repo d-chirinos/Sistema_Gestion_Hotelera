@@ -19,9 +19,9 @@ test('consulta módulos al navegar sin peticiones de escritura', async ({ page }
     }
     return route.fulfill({ status: 404, headers, body: '{}' })
   })
-  await page.goto('./')
+  await page.goto('./'); await page.getByRole('button', { name: /Administrador/ }).click()
   await page.getByLabel('Correo electrónico').fill('test@example.invalid')
-  await page.getByLabel('Contraseña').fill('prueba-local')
+  await page.getByLabel('Contraseña', { exact: true }).fill('prueba-local')
   await page.getByRole('button', { name: 'Iniciar sesión' }).click()
   const menu = page.getByRole('navigation', { name: 'Menú principal' })
   for (const [modulo, texto] of [['Pagos', 'ADELANTO'], ['Empleados', 'Paola'], ['Estadías', 'No hay registros disponibles.'], ['Consumos', 'No hay registros disponibles.'], ['Mantenimiento', 'No hay registros disponibles.'], ['Cargos', 'No hay registros disponibles.']]) {

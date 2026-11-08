@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { clientesHotel, claveReserva } from './supabase/clientes.js'
 import { crearIntencion } from './supabase/intencion.js'
-export default function ReservaConocida({ cliente, habitaciones, cotizar, actualizar }) {
+export default function ReservaConocida({ cliente, habitaciones, cotizar, actualizar, operativo = false }) {
   const [clientes, setClientes] = useState([]), [pendiente, setPendiente] = useState(null), [listo, setListo] = useState(false), [form, setForm] = useState({ cliente: '', habitacion: '', entrada: '', salida: '' }), [precio, setPrecio] = useState(null), [ocupado, setOcupado] = useState(false), [aviso, setAviso] = useState('')
   const version = useRef(0)
   const servicio = useMemo(() => {
     try { return crearIntencion({ cliente, almacenamiento: window.localStorage, bloqueos: navigator.locks, cryptoAPI: crypto, operacion: 'reserva_conocida', rpc: 'crear_reserva_cliente_conocido', idRespuesta: 'id_reserva', generarClave: claveReserva }) }
     catch { return { pendiente: async () => { throw new Error('Almacenamiento no disponible') }, ejecutar: async () => { throw new Error('Almacenamiento no disponible') } } }
   }, [cliente])
-  useEffect(() => { const contador = version; let activo = true; Promise.all([clientesHotel(cliente), servicio.pendiente()]).then(([c, p]) => { if (activo) { setClientes(c); setPendiente(p); setListo(true) } }).catch(() => { if (activo) setAviso('No fue posible preparar la operación.') }); return () => { activo = false; contador.current++ } }, [cliente, servicio])
+  useEffect(() => { const contador = version; let activo = true; Promise.all([clientesHotel(cliente, operativo), servicio.pendiente()]).then(([c, p]) => { if (activo) { setClientes(c); setPendiente(p); setListo(true) } }).catch(() => { if (activo) setAviso('No fue posible preparar la operación.') }); return () => { activo = false; contador.current++ } }, [cliente, servicio, operativo])
   function cambiar(campo, valor) { version.current++; setOcupado(false); setPrecio(null); setAviso(''); setForm(f => ({ ...f, [campo]: valor })) }
   async function cotizarFormulario() {
     if (!clientes.some(c => String(c.id_cliente) === form.cliente) || !habitaciones.some(h => String(h.id_habitacion) === form.habitacion) || !form.entrada || !form.salida || form.salida <= form.entrada) { setAviso('Revisa el cliente, la habitación y las fechas.'); return }

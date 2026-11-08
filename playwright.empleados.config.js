@@ -1,0 +1,2 @@
+import base from './playwright.config.js'
+export default { ...base, testMatch: 'empleados_acceso.spec.js', webServer: { ...base.webServer, env: { ...base.webServer.env, VITE_ACCESO_EMPLEADOS: 'true', VITE_OPERACIONES_LECTURA: 'true', VITE_RESERVAS_LECTURA: 'true', VITE_CLIENTES_HOTEL: 'true', VITE_PAGOS_ESCRITURA: 'true', VITE_OPERACIONES_ESCRITURA: 'true', VITE_ESTADIAS_ESCRITURA: 'true', VITE_GESTION_HOTEL: 'true' } } }
