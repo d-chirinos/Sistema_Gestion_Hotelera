@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-export default function EditarEmpleado({ cliente, empleados, consultar, actualizar }) {
-  const [cargos, setCargos] = useState([]), [id, setId] = useState(''), [ocupado, setOcupado] = useState(false), [error, setError] = useState('')
-  const [f, setF] = useState({ nombre: '', apellido: '', documentoAnterior: '', documento: '', cargo: '', fecha: '' })
+export default function EditarEmpleado({ cliente, empleados, consultar, actualizar, seleccionado }) {
+  const [cargos, setCargos] = useState([]), [id, setId] = useState(seleccionado ? String(seleccionado.id_empleado) : ''), [ocupado, setOcupado] = useState(false), [error, setError] = useState('')
+  const [f, setF] = useState({ nombre: seleccionado?.nombre ?? '', apellido: seleccionado?.apellido ?? '', documentoAnterior: '', documento: '', cargo: seleccionado ? String(seleccionado.cargo_id_cargo) : '', fecha: seleccionado?.fecha_ingreso ?? '' })
   const actual = empleados.find(e => String(e.id_empleado) === id)
   useEffect(() => { let vigente = true; consultar('cargos').then(d => { if (vigente) setCargos(d) }).catch(() => { if (vigente) setError('No fue posible consultar los cargos del hotel.') }); return () => { vigente = false } }, [consultar])
   function seleccionar(valor) { const e = empleados.find(x => String(x.id_empleado) === valor); setId(valor); setF({ nombre: e?.nombre ?? '', apellido: e?.apellido ?? '', documentoAnterior: '', documento: '', cargo: e ? String(e.cargo_id_cargo) : '', fecha: e?.fecha_ingreso ?? '' }); setError('') }

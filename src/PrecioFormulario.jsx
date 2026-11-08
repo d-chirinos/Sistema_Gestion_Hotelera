@@ -1,7 +1,7 @@
 import { soles } from './utils/moneda.js'
 import { useState } from 'react'
-export default function PrecioFormulario({ recurso, datos, cliente, actualizar }) {
-  const [id, setId] = useState('')
+export default function PrecioFormulario({ recurso, datos, cliente, actualizar, seleccionado }) {
+  const [id, setId] = useState(seleccionado ? String(recurso === 'tarifa_habitacion' ? seleccionado.id_tarifa : seleccionado.id_servicio) : '')
   const [precio, setPrecio] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')

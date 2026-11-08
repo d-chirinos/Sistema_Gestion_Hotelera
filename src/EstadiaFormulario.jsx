@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
-export default function EstadiaFormulario({ cliente, actualizar }) {
+export default function EstadiaFormulario({ cliente, actualizar, estadiaInicial }) {
   const [reserva, setReserva] = useState('')
-  const [estadia, setEstadia] = useState('')
+  const [estadia, setEstadia] = useState(estadiaInicial ? String(estadiaInicial) : '')
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
   async function ejecutar(evento, operacion, id) {

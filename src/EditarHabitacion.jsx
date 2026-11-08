@@ -1,6 +1,6 @@
 import { useState } from 'react'
-export default function EditarHabitacion({ cliente, datos, actualizar }) {
-  const [id, setId] = useState(''), [numero, setNumero] = useState(''), [tipo, setTipo] = useState(''), [piso, setPiso] = useState(''), [ocupado, setOcupado] = useState(false), [error, setError] = useState('')
+export default function EditarHabitacion({ cliente, datos, actualizar, seleccionado }) {
+  const [id, setId] = useState(seleccionado ? String(seleccionado.id_habitacion) : ''), [numero, setNumero] = useState(seleccionado?.numero ?? ''), [tipo, setTipo] = useState(seleccionado ? String(seleccionado.tipo_habitacion_id_tipo) : ''), [piso, setPiso] = useState(seleccionado?.piso == null ? '' : String(seleccionado.piso)), [ocupado, setOcupado] = useState(false), [error, setError] = useState('')
   const actual = datos.habitacion.find(h => String(h.id_habitacion) === id)
   function seleccionar(idNuevo) { const h = datos.habitacion.find(x => String(x.id_habitacion) === idNuevo); setId(idNuevo); setNumero(h?.numero ?? ''); setTipo(h ? String(h.tipo_habitacion_id_tipo) : ''); setPiso(h?.piso == null ? '' : String(h.piso)); setError('') }
   async function enviar(e) {

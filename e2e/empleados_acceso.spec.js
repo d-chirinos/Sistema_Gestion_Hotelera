@@ -39,7 +39,7 @@ for (const rol of ['RECEPCIONISTA', 'MANTENIMIENTO']) {
       await expect(menu.getByRole('button', { name: 'Mantenimiento', exact: true })).toHaveCount(0)
     } else {
       await menu.getByRole('button', { name: 'Mantenimiento', exact: true }).click()
-      await expect(page.getByRole('button', { name: 'Gestionar mantenimiento' })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Nuevo mantenimiento' })).toHaveCount(0)
       await expect(menu.getByRole('button', { name: 'Pagos', exact: true })).toHaveCount(0)
     }
     expect(llamadas.some(x => /registrar_pago|crear_reserva|iniciar_mantenimiento/.test(x))).toBe(false)

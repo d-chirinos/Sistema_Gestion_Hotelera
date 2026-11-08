@@ -28,7 +28,7 @@ for (const rol of ['RECEPCIONISTA', 'MANTENIMIENTO']) {
       await expect(page.getByText('Pago 11 registrado.')).toBeVisible()
       expect(llamadas.some(x => x.endsWith('/registrar_pago_reserva'))).toBe(true)
     } else {
-      await menu.getByRole('button', { name: 'Mantenimiento', exact: true }).click(); await page.getByRole('button', { name: 'Gestionar mantenimiento' }).click()
+      await menu.getByRole('button', { name: 'Mantenimiento', exact: true }).click(); await page.getByRole('button', { name: 'Nuevo mantenimiento' }).click()
       await expect(page.getByRole('button', { name: 'Liberar habitación' })).toHaveCount(0)
       await page.getByLabel('Habitación de mantenimiento').selectOption('1'); await page.getByLabel('Tipo de intervención').fill('Revisión'); await page.getByRole('button', { name: 'Iniciar mantenimiento' }).click()
       await expect(page.getByText('Operación completada. Información actualizada.')).toBeVisible()

@@ -14,7 +14,7 @@ test('consulta módulos al navegar sin peticiones de escritura', async ({ page }
       return route.fulfill({ headers, body: JSON.stringify(data[req.postDataJSON().p_recurso]) })
     }
     if (url.pathname.endsWith('/consultar_operaciones_hotel')) {
-      const data = { pagos: [{ id_pago: 1, reserva_id_reserva: 1, monto: 100, tipo_pago: 'ADELANTO' }], empleados: [{ id_empleado: 1, nombre: 'Paola', apellido: 'Prueba', cargo: 'Administración' }], estadias: [], consumos: [], mantenimiento: [], cargos: [] }
+      const data = { pagos: [{ id_pago: 1, reserva_id_reserva: 1, monto: 100, tipo_pago: 'ADELANTO' }], empleados: [{ id_empleado: 1, nombre: 'Paola', apellido: 'Prueba', cargo_id_cargo: 3, cargo: 'Administración' }], estadias: [], consumos: [], mantenimiento: [], cargos: [{ id_cargo: 3, nombre: 'Administración' }] }
       return route.fulfill({ headers, body: JSON.stringify(data[req.postDataJSON().p_modulo]) })
     }
     return route.fulfill({ status: 404, headers, body: '{}' })
@@ -24,9 +24,25 @@ test('consulta módulos al navegar sin peticiones de escritura', async ({ page }
   await page.getByLabel('Contraseña', { exact: true }).fill('prueba-local')
   await page.getByRole('button', { name: 'Iniciar sesión' }).click()
   const menu = page.getByRole('navigation', { name: 'Menú principal' })
-  for (const [modulo, texto] of [['Pagos', 'ADELANTO'], ['Empleados', 'Paola'], ['Estadías', 'No hay registros disponibles.'], ['Consumos', 'No hay registros disponibles.'], ['Mantenimiento', 'No hay registros disponibles.'], ['Cargos', 'No hay registros disponibles.']]) {
+  for (const [modulo, texto] of [['Pagos', 'ADELANTO'], ['Empleados', 'Paola'], ['Estadías', 'No hay registros disponibles.'], ['Consumos', 'No hay registros disponibles.'], ['Mantenimiento', 'No hay registros disponibles.'], ['Cargos', 'Administración']]) {
     await menu.getByRole('button', { name: modulo, exact: true }).click()
-    await expect(page.getByText(texto)).toBeVisible()
+    await expect(page.getByText(texto, { exact: true })).toBeVisible()
+    if (modulo === 'Pagos') {
+      await page.getByRole('button', { name: 'Mostrar filtros' }).click()
+      await page.getByLabel('Atributo').selectOption('tipo_pago')
+      await page.getByLabel('Valor').fill('ADELANTO')
+      await page.getByRole('button', { name: 'Agregar filtro' }).click()
+      await page.getByLabel('Atributo').selectOption('reserva_id_reserva')
+      await page.getByLabel('Valor').fill('1')
+      await page.getByRole('button', { name: 'Agregar filtro' }).click()
+      await expect(page.getByRole('button', { name: /Quitar filtro/ })).toHaveCount(2)
+      await expect(page.getByRole('button', { name: 'Ver detalle Pagos 1' })).toBeVisible()
+    }
+    if (modulo === 'Cargos') {
+      await page.getByRole('button', { name: 'Ver detalle Cargos 3' }).click()
+      await expect(page.getByText('Paola Prueba · #1')).toBeVisible()
+      await page.getByRole('button', { name: 'Cerrar ventana' }).click()
+    }
   }
   const consultas = llamadas.filter(([ruta]) => ruta.endsWith('/consultar_operaciones_hotel'))
   expect(new Set(consultas.map(([, args]) => args.p_modulo))).toEqual(new Set(['pagos', 'empleados', 'estadias', 'consumos', 'mantenimiento', 'cargos']))
