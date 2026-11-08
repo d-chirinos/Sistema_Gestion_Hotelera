@@ -22,9 +22,9 @@ test('la fecha se presenta sin convertir zonas horarias ni validar el calendario
 test('el monto conserva dos decimales, signo y tratamiento de valores ausentes', () => {
   assert.equal(formatearMontoReserva(1234.5), 'S/ 1,234.50')
   assert.equal(formatearMontoReserva('12.3'), 'S/ 12.30')
-  assert.equal(formatearMontoReserva(-12.5), 'S/ -12.50')
+  assert.equal(formatearMontoReserva(-12.5), '-S/ 12.50')
   assert.equal(formatearMontoReserva(0), 'S/ 0.00')
   assert.equal(formatearMontoReserva(null), 'S/ 0.00')
   assert.equal(formatearMontoReserva(''), 'S/ 0.00')
-  assert.equal(formatearMontoReserva('no-numero'), 'S/ NaN')
+  assert.equal(formatearMontoReserva('no-numero'), '—')
 })

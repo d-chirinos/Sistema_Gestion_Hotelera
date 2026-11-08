@@ -1,3 +1,4 @@
+import { soles } from './utils/moneda.js'
 import { useEffect, useMemo, useState } from 'react'
 import { crearIntencion } from './supabase/intencion.js'
 
@@ -39,7 +40,7 @@ function Inicio({ modulo, cliente, datos, actualizar }) {
     {pendiente && <p role="status">Operación pendiente {pendiente.clave}. Al reintentar se usarán los mismos datos.</p>}
     {!pendiente && <form id={`form-${modulo}`} onSubmit={enviar}><div className="reservation-form-grid real-cotizador-grid">
       {mantenimiento ? <label className="reservation-form-field"><span>Habitación de mantenimiento</span><select required value={form.referencia} onChange={e => setForm({ ...form, referencia: e.target.value })}><option value="">Selecciona</option>{datos.habitacion.map(h => <option key={h.id_habitacion} value={h.id_habitacion}>{h.numero}</option>)}</select></label> : <label className="reservation-form-field"><span>ID de estadía para consumo</span><input required inputMode="numeric" value={form.referencia} onChange={e => setForm({ ...form, referencia: e.target.value })} /></label>}
-      {!mantenimiento && <label className="reservation-form-field"><span>Servicio consumido</span><select required value={form.servicio} onChange={e => setForm({ ...form, servicio: e.target.value })}><option value="">Selecciona</option>{datos.servicio.map(s => <option key={s.id_servicio} value={s.id_servicio}>{s.nombre} — {s.precio}</option>)}</select></label>}
+      {!mantenimiento && <label className="reservation-form-field"><span>Servicio consumido</span><select required value={form.servicio} onChange={e => setForm({ ...form, servicio: e.target.value })}><option value="">Selecciona</option>{datos.servicio.map(s => <option key={s.id_servicio} value={s.id_servicio}>{s.nombre} — {soles(s.precio)}</option>)}</select></label>}
       <label className="reservation-form-field"><span>{mantenimiento ? 'Tipo de intervención' : 'Cantidad'}</span><input required value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} /></label>
     </div><button type="submit" className="reservation-save-button" disabled={!listo || ocupado}>{ocupado ? 'Enviando…' : mantenimiento ? 'Iniciar mantenimiento' : 'Registrar consumo'}</button></form>}
     {pendiente && <button type="button" className="reservation-save-button" disabled={!listo || ocupado} onClick={enviar}>Reintentar operación pendiente</button>}

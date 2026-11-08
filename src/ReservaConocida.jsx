@@ -1,3 +1,4 @@
+import { soles } from './utils/moneda.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { clientesHotel, claveReserva } from './supabase/clientes.js'
 import { crearIntencion } from './supabase/intencion.js'
@@ -18,7 +19,7 @@ export default function ReservaConocida({ cliente, habitaciones, cotizar, actual
   async function enviar(e) {
     e.preventDefault()
     if (!pendiente && !precio) { setAviso('Cotiza y confirma el precio antes de reservar.'); return }
-    if (!window.confirm(pendiente ? '¿Reintentar la misma reserva pendiente?' : `¿Confirmas la reserva por ${precio.total}?`)) return
+    if (!window.confirm(pendiente ? '¿Reintentar la misma reserva pendiente?' : `¿Confirmas la reserva por ${soles(precio.total)}?`)) return
     setOcupado(true); setAviso('')
     try {
       const args = pendiente ? null : { p_cliente: form.cliente, p_habitacion: form.habitacion, p_entrada: form.entrada, p_salida: form.salida, p_precio_aceptado: String(precio.precio_noche) }
@@ -29,7 +30,7 @@ export default function ReservaConocida({ cliente, habitaciones, cotizar, actual
   return <div className="room-list reservations-list real-list"><div className="room-list-header"><div><h2>Nueva reserva de cliente vinculado</h2><p>Solo clientes que ya tienen una reserva en este hotel. El alta y la primera visita permanecen bloqueadas.</p></div></div>
     {pendiente && <p role="status">Reserva pendiente {pendiente.clave}; el reintento conserva los mismos datos.</p>}
     <form onSubmit={enviar}>{!pendiente && <div className="reservation-form-grid real-cotizador-grid"><label className="reservation-form-field"><span>Cliente vinculado</span><select required disabled={ocupado} value={form.cliente} onChange={e => cambiar('cliente', e.target.value)}><option value="">Selecciona</option>{clientes.map(c => <option key={c.id_cliente} value={c.id_cliente}>{c.nombre} {c.apellido}</option>)}</select></label><label className="reservation-form-field"><span>Habitación para reserva</span><select required disabled={ocupado} value={form.habitacion} onChange={e => cambiar('habitacion', e.target.value)}><option value="">Selecciona</option>{habitaciones.map(h => <option key={h.id_habitacion} value={h.id_habitacion}>{h.numero}</option>)}</select></label>{[['entrada', 'Entrada de reserva'], ['salida', 'Salida de reserva']].map(([campo, titulo]) => <label className="reservation-form-field" key={campo}><span>{titulo}</span><input type="date" required disabled={ocupado} value={form[campo]} onChange={e => cambiar(campo, e.target.value)} /></label>)}</div>}
-    {!pendiente && <button type="button" className="list-clear-button" disabled={!listo || ocupado} onClick={cotizarFormulario}>Cotizar nueva reserva</button>}{precio && !pendiente && <p>Tarifa: {precio.precio_noche} · Noches: {precio.noches} · Total: {precio.total}. La disponibilidad se validará al confirmar.</p>}
+    {!pendiente && <button type="button" className="list-clear-button" disabled={!listo || ocupado} onClick={cotizarFormulario}>Cotizar nueva reserva</button>}{precio && !pendiente && <p>Tarifa: {soles(precio.precio_noche)} · Noches: {precio.noches} · Total: {soles(precio.total)}. La disponibilidad se validará al confirmar.</p>}
     <button type="submit" className="reservation-save-button" disabled={!listo || ocupado || (!pendiente && !precio)}>{pendiente ? 'Reintentar reserva pendiente' : 'Confirmar reserva'}</button></form>{aviso && <p role="status">{aviso}</p>}
   </div>
 }

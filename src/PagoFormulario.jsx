@@ -1,3 +1,4 @@
+import { soles } from './utils/moneda.js'
 import { useEffect, useState } from 'react'
 
 export default function PagoFormulario({ pagos, alGuardar }) {
@@ -27,10 +28,10 @@ export default function PagoFormulario({ pagos, alGuardar }) {
     } finally { setCargando(false) }
   }
   return <div className="room-list reservations-list real-list"><div className="room-list-header"><div><h2>Registrar pago recibido</h2><p>Se registra el pago asociado a una reserva de este hotel; no se procesa una transacción bancaria.</p></div></div>
-    {pendiente && <p role="status">Pago pendiente de confirmar: reserva {pendiente.reserva}, importe {pendiente.monto}, método {pendiente.metodo}. Solo puede reintentarse con los mismos datos.</p>}
+    {pendiente && <p role="status">Pago pendiente de confirmar: reserva {pendiente.reserva}, importe {soles(pendiente.monto)}, método {pendiente.metodo}. Solo puede reintentarse con los mismos datos.</p>}
     <form onSubmit={enviar}><div className="reservation-form-grid real-cotizador-grid">
       <label className="reservation-form-field"><span>Reserva</span><input required inputMode="numeric" value={pendiente?.reserva ?? form.reserva} disabled={!!pendiente || cargando} onChange={e => setForm({ ...form, reserva: e.target.value })} /></label>
-      <label className="reservation-form-field"><span>Importe</span><input required inputMode="decimal" value={pendiente?.monto ?? form.monto} disabled={!!pendiente || cargando} onChange={e => setForm({ ...form, monto: e.target.value })} /></label>
+      <label className="reservation-form-field"><span>Importe <span aria-hidden="true">(S/)</span></span><input aria-label="Importe" placeholder="S/ 0.00" required inputMode="decimal" value={pendiente?.monto ?? form.monto} disabled={!!pendiente || cargando} onChange={e => setForm({ ...form, monto: e.target.value })} /></label>
       <label className="reservation-form-field"><span>Método de pago</span><input required value={pendiente?.metodo ?? form.metodo} disabled={!!pendiente || cargando} onChange={e => setForm({ ...form, metodo: e.target.value })} /></label>
     </div><div className="real-cotizador-acciones"><button className="reservation-save-button" disabled={!listo || cargando} type="submit">{cargando ? 'Registrando…' : pendiente ? 'Reintentar pago pendiente' : 'Registrar pago'}</button></div></form>
     {aviso && <p role="status">{aviso}</p>}

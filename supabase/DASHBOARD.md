@@ -12,6 +12,6 @@ VITE_INDICADORES_HOTEL=true
 
 Reinicie Vite después de cambiar las opciones. Si una opción está desactivada o una RPC falla, se indica el estado en vez de mostrar ceros como si fueran datos. Las opciones no conceden permisos: el servidor sigue verificando la cuenta y el hotel.
 
-La fecha de hoy y las llegadas próximas utilizan la zona horaria del hotel. Los importes se presentan sin símbolo de moneda porque el modelo no define uno. Un mantenimiento sin fecha de fin puede ser histórico y no implica necesariamente que siga activo. Los indicadores adicionales históricos están en «Más indicadores operativos».
+La fecha de hoy y las llegadas próximas utilizan la zona horaria del hotel. Por convención académica, todos los importes se muestran en soles peruanos (PEN), sin conversión ni cambio de los valores almacenados; el modelo no tiene un atributo de moneda. Un mantenimiento sin fecha de fin puede ser histórico y no implica necesariamente que siga activo. Los indicadores adicionales históricos están en «Más indicadores operativos».
 
 La prueba de navegador independiente usa respuestas simuladas, no se conecta a Supabase: `npx playwright test --config playwright.dashboard.config.js`.

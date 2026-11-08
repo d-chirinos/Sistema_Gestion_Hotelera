@@ -1,3 +1,4 @@
+import { soles } from './utils/moneda.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { claveReserva } from './supabase/clientes.js'
 import { crearIntencion } from './supabase/intencion.js'
@@ -18,7 +19,7 @@ export default function PrimeraReserva({ cliente, habitaciones, cotizar, actuali
   async function enviar(e) {
     e.preventDefault()
     if (!pendiente && !precio) { setAviso('Cotiza y confirma el precio antes de registrar.'); return }
-    if (!window.confirm(pendiente ? '¿Reintentar la misma solicitud pendiente?' : `¿Confirmas registrar el cliente nuevo y la reserva por ${precio.total}?`)) return
+    if (!window.confirm(pendiente ? '¿Reintentar la misma solicitud pendiente?' : `¿Confirmas registrar el cliente nuevo y la reserva por ${soles(precio.total)}?`)) return
     setOcupado(true); setAviso('')
     try {
       const args = pendiente ? null : { p_nombre: form.nombre.trim(), p_apellido: form.apellido.trim(), p_tipo_documento: form.tipo.trim(), p_pais_documento: form.pais.trim(), p_documento: form.documento.trim(), p_habitacion: form.habitacion, p_entrada: form.entrada, p_salida: form.salida, p_precio_aceptado: String(precio.precio_noche) }
@@ -33,7 +34,7 @@ export default function PrimeraReserva({ cliente, habitaciones, cotizar, actuali
       <label className="reservation-form-field"><span>Habitación para primera reserva</span><select required disabled={ocupado} value={form.habitacion} onChange={e => cambiar('habitacion', e.target.value)}><option value="">Selecciona</option>{habitaciones.map(h => <option key={h.id_habitacion} value={h.id_habitacion}>{h.numero}</option>)}</select></label>
       {[['entrada', 'Entrada primera reserva'], ['salida', 'Salida primera reserva']].map(([campo, titulo]) => <label key={campo} className="reservation-form-field"><span>{titulo}</span><input required disabled={ocupado} type="date" value={form[campo]} onChange={e => cambiar(campo, e.target.value)} /></label>)}
     </div>}
-    {!pendiente && <button type="button" className="list-clear-button" disabled={!listo || ocupado} onClick={obtenerPrecio}>Cotizar primera reserva</button>}{precio && !pendiente && <p>Tarifa: {precio.precio_noche} · Noches: {precio.noches} · Total: {precio.total}. La disponibilidad se valida al confirmar.</p>}
+    {!pendiente && <button type="button" className="list-clear-button" disabled={!listo || ocupado} onClick={obtenerPrecio}>Cotizar primera reserva</button>}{precio && !pendiente && <p>Tarifa: {soles(precio.precio_noche)} · Noches: {precio.noches} · Total: {soles(precio.total)}. La disponibilidad se valida al confirmar.</p>}
     <button className="reservation-save-button" type="submit" disabled={!listo || ocupado || (!pendiente && !precio)}>{pendiente ? 'Reintentar primera reserva pendiente' : 'Registrar cliente y reserva'}</button></form>{aviso && <p role="status">{aviso}</p>}
   </div>
 }

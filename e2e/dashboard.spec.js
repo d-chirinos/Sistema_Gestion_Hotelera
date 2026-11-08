@@ -29,7 +29,7 @@ test('dashboard muestra datos de las RPC del hotel y permite navegar', async ({ 
   await expect(page.getByText('Persona Ejemplo')).toBeVisible()
   await expect(page.getByText('Cancelada Ejemplo')).toHaveCount(0)
   await expect(page.getByText('Pago #2')).toBeVisible()
-  await expect(page.getByText('125.00').first()).toBeVisible()
+  await expect(page.getByText('S/ 125.00').first()).toBeVisible()
   await expect(page.getByText('1 mantenimiento(s) sin fecha de fin')).toBeVisible()
   await expect(page.getByText('Zona horaria: America/Lima')).toBeVisible()
   expect(await page.getByRole('navigation', { name: 'Menú principal' }).locator('svg').count()).toBeGreaterThanOrEqual(12)

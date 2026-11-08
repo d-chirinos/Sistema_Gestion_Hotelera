@@ -51,7 +51,7 @@ test('administrador navega los datos autorizados y módulos pendientes sin escri
   await page.getByRole('tab', { name: 'Tipos de habitación' }).click()
   await expect(page.getByText('Dos personas')).toBeVisible()
   await page.getByRole('tab', { name: 'Tarifas' }).click()
-  await expect(page.getByText('100', { exact: true })).toBeVisible()
+  await expect(page.getByText('S/ 100.00', { exact: true })).toBeVisible()
   await nav.getByRole('button', { name: 'Servicios' }).click()
   await expect(page.getByText('Desayuno')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Registrar servicio' })).toHaveCount(0)

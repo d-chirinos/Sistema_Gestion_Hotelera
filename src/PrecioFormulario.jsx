@@ -1,3 +1,4 @@
+import { soles } from './utils/moneda.js'
 import { useState } from 'react'
 export default function PrecioFormulario({ recurso, datos, cliente, actualizar }) {
   const [id, setId] = useState('')
@@ -22,7 +23,7 @@ export default function PrecioFormulario({ recurso, datos, cliente, actualizar }
     finally { setOcupado(false) }
   }
   return <div className="room-list reservations-list real-list"><div className="room-list-header"><div><h2>Actualizar {esTarifa ? 'tarifa' : 'precio de servicio'}</h2><p>El cambio afecta el precio vigente, sin alterar importes históricos.</p></div></div><form onSubmit={guardar}>
-    <label className="reservation-form-field"><span>Registro</span><select required value={id} onChange={e => setId(e.target.value)}><option value="">Selecciona</option>{filas.map(fila => { const valor = esTarifa ? fila.id_tarifa : fila.id_servicio; const tipo = datos.tipo_habitacion.find(t => String(t.id_tipo) === String(fila.tipo_habitacion_id_tipo)); return <option key={valor} value={valor}>{esTarifa ? `${tipo?.nombre ?? 'Tipo'} — ${fila.precio_noche}` : `${fila.nombre} — ${fila.precio}`}</option> })}</select></label>
-    <label className="reservation-form-field"><span>Nuevo precio</span><input required inputMode="decimal" value={precio} onChange={e => setPrecio(e.target.value)} /></label>
+    <label className="reservation-form-field"><span>Registro</span><select required value={id} onChange={e => setId(e.target.value)}><option value="">Selecciona</option>{filas.map(fila => { const valor = esTarifa ? fila.id_tarifa : fila.id_servicio; const tipo = datos.tipo_habitacion.find(t => String(t.id_tipo) === String(fila.tipo_habitacion_id_tipo)); return <option key={valor} value={valor}>{esTarifa ? `${tipo?.nombre ?? 'Tipo'} — ${soles(fila.precio_noche)}` : `${fila.nombre} — ${soles(fila.precio)}`}</option> })}</select></label>
+    <label className="reservation-form-field"><span>Nuevo precio <span aria-hidden="true">(S/)</span></span><input aria-label="Nuevo precio" placeholder="S/ 0.00" required inputMode="decimal" value={precio} onChange={e => setPrecio(e.target.value)} /></label>
     <button type="submit" className="reservation-save-button" disabled={ocupado}>Guardar precio</button></form>{error && <p role="alert">{error}</p>}</div>
 }
