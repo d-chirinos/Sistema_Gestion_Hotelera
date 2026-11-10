@@ -6,6 +6,7 @@ import { CATALOGO } from '../supabase/functions/_shared/catalogo.mjs'
 import { readFileSync } from 'node:fs'
 import { PREGUNTAS } from '../supabase/functions/_shared/preguntas.mjs'
 import { validarSQL } from '../supabase/functions/ejecutar-consulta-sql/validar.mjs'
+import { consultasAcademicas } from './fixtures/consultas_academicas.mjs'
 const configurar = (rol = 'ADMINISTRADOR', sql = 'SELECT numero FROM hotel_consultas.habitacion') => {
   const llamadas = []
   const vars = { SUPABASE_URL: 'https://local.invalid', SUPABASE_ANON_KEY: 'anon-ficticia', GEMINI_API_KEY: 'clave-ficticia', GEMINI_MODEL: 'modelo-ficticio' }
@@ -124,9 +125,9 @@ test('explica consultas con fechas sin enviar sus literales al proveedor', async
 
 test('recupera los tres enunciados sin repetir la llamada y mantiene SQL validado', async () => {
   const variantes = [
-    'SELECT e.nombre FROM empleado e JOIN mantenimiento m ON m.empleado_id_empleado = e.id_empleado',
-    'SELECT COUNT(DISTINCT id_estadia) FROM hotel_consultas.estadia WHERE EXTRACT(YEAR FROM fecha_checkin) = 2026',
-    "SELECT fecha_entrada - fecha_reserva FROM hotel_consultas.reserva WHERE fecha_entrada BETWEEN DATE '2026-01-01' AND DATE '2026-12-31'",
+    'SELECT e.nombre FROM public.empleado e',
+    'SELECT pg_sleep(1) FROM hotel_consultas.estadia',
+    'SELECT * FROM hotel_consultas.reserva; DROP TABLE public.reserva',
   ]
   for (const [i, sql] of variantes.entries()) {
     const prueba = configurar('ADMINISTRADOR', sql)
@@ -137,6 +138,32 @@ test('recupera los tres enunciados sin repetir la llamada y mantiene SQL validad
     assert.ok(validarSQL(salida.sql))
     assert.equal(prueba.llamadas.filter(x => x.url.includes('googleapis')).length, 1)
   }
+})
+
+test('diez preguntas nuevas aceptan respuestas simuladas generales sin usar respaldos', async () => {
+  assert.equal(consultasAcademicas.length, 10)
+  for (const [pregunta, sql] of consultasAcademicas) {
+    const prueba = configurar('ADMINISTRADOR', sql)
+    const respuesta = await prueba.pedir({ modo: 'generar', texto: pregunta })
+    assert.equal(respuesta.status, 200, pregunta)
+    const salida = await respuesta.json()
+    assert.equal(salida.sql, sql)
+    assert.doesNotMatch(salida.explicacion, /respaldo/)
+  }
+})
+
+test('el diagnóstico usa reglas fijas y jamás incluye SQL, identidad ni mensajes arbitrarios', async () => {
+  const registros = []
+  const vars = { SUPABASE_URL: 'https://local.invalid', SUPABASE_ANON_KEY: 'clave-ficticia', GEMINI_API_KEY: 'clave-ficticia', GEMINI_MODEL: 'modelo-ficticio' }
+  const handler = crearHandler({ obtenerEnv: n => vars[n], registrar: r => registros.push(r), fetchImpl: async url => {
+    if (url.endsWith('/auth/v1/user')) return Response.json({ id: 'identidad-privada' })
+    if (url.endsWith('/mi_cuenta_hotelmanager')) return Response.json([{ rol_sistema: 'ADMINISTRADOR', hotel_id: 1 }])
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ sql: "SELECT 'DATO_PRIVADO' FROM public.cliente", explicacion: 'x' }) }] } }] })
+  } })
+  const respuesta = await handler(new Request('https://local.invalid', { method: 'POST', headers: { Authorization: 'Bearer token-privado' }, body: JSON.stringify({ modo: 'generar', texto: 'Consultar reservas del hotel' }) }))
+  assert.equal(respuesta.status, 502)
+  assert.deepEqual(registros, [{ evento: 'consultas_gemini.sql_rechazado', regla: 'HM_SQL_OBJETO' }])
+  assert.doesNotMatch(JSON.stringify(registros), /DATO_PRIVADO|identidad|token|clave/)
 })
 
 test('quita únicamente un cerco Markdown completo y no filtra SQL incompatible', async () => {

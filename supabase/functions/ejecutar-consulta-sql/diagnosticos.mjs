@@ -1,6 +1,7 @@
 // Solo se emiten etiquetas y códigos de esta lista. Nunca se registran excepciones,
 // mensajes, causas, identificadores, consultas, resultados ni configuración.
 const codigos = new Map([
+  ...['HM_SQL_EXPRESION', 'HM_SQL_ESTRUCTURA', 'HM_SQL_FECHA', 'HM_SQL_OPERADOR', 'HM_SQL_FUNCION', 'HM_SQL_OBJETO', 'HM_SQL_SENTENCIA', 'HM_SQL_LONGITUD', 'HM_SQL_SINTAXIS', 'HM_SQL_MULTIPLE'].map(codigo => [codigo, 'sql_no_admitido']),
   ['HM_CONFIG_CONEXION', 'configuracion_conexion'],
   ['HM_CONFIG_URL', 'configuracion_conexion'], ['HM_CONFIG_PROTOCOLO', 'configuracion_conexion'],
   ['HM_CONFIG_HOST', 'configuracion_conexion'], ['HM_CONFIG_USUARIO', 'configuracion_conexion'],

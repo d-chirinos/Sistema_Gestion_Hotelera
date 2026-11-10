@@ -6,6 +6,7 @@ import { validarSQL } from '../supabase/functions/ejecutar-consulta-sql/validar.
 import { ejecutarLectura } from '../supabase/functions/ejecutar-consulta-sql/ejecutor.mjs'
 import { respaldoAcademico } from '../supabase/functions/consultas-gemini/respaldo.mjs'
 import { PREGUNTAS } from '../supabase/functions/_shared/preguntas.mjs'
+import { consultasAcademicas } from './fixtures/consultas_academicas.mjs'
 
 const identidad = '00000000-0000-4000-8000-000000000001'
 const otro = '00000000-0000-4000-8000-000000000002'
@@ -25,6 +26,20 @@ test('el analizador acepta las 16 consultas y bloquea sentencias y funciones pel
 test('admite fecha actual y literales DATE sin abrir otros casts o funciones', () => {
   for (const q of ["SELECT fecha_entrada - fecha_reserva FROM hotel_consultas.reserva", "SELECT fecha_inicio FROM hotel_consultas.mantenimiento WHERE fecha_inicio <= CURRENT_DATE", "SELECT fecha_checkin FROM hotel_consultas.estadia WHERE fecha_checkin >= DATE '2026-01-01'"]) assert.ok(validarSQL(q))
   for (const q of ["SELECT CURRENT_USER FROM hotel_consultas.reserva", "SELECT CAST('public.cliente' AS regclass) FROM hotel_consultas.reserva", "SELECT CAST(numero AS DATE) FROM hotel_consultas.habitacion", "SELECT current_date() FROM hotel_consultas.reserva", "SELECT pg_sleep(1) FROM hotel_consultas.reserva"]) assert.throws(() => validarSQL(q), /no admitida/i)
+})
+
+test('las nuevas expresiones no abren funciones, esquemas o sentencias peligrosas', () => {
+  for (const sql of [
+    'SELECT COALESCE(pg_sleep(1), 0) FROM hotel_consultas.reserva',
+    "SELECT EXTRACT(YEAR FROM set_config('request.jwt.claim.sub','x',true)) FROM hotel_consultas.reserva",
+    'SELECT EXTRACT(EPOCH FROM fecha_entrada) FROM hotel_consultas.reserva',
+    'SELECT COUNT(DISTINCT pg_sleep(1)) FROM hotel_consultas.reserva',
+    'SELECT * FROM public.cliente', 'SELECT * FROM pg_catalog.pg_class',
+    'SELECT * FROM auth.users', 'SELECT * FROM cliente; DELETE FROM public.cliente',
+    'WITH x AS (DELETE FROM public.cliente RETURNING *) SELECT * FROM x',
+    "SELECT * FROM hotel_consultas.reserva WHERE fecha_entrada BETWEEN pg_sleep(1) AND CURRENT_DATE",
+  ]) assert.throws(() => validarSQL(sql), /no admitida/i, sql)
+  assert.match(validarSQL('SELECT numero FROM habitacion'), /hotel_consultas\.habitacion/)
 })
 
 test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip: !conexionURL, timeout: 30000 }, async t => {
@@ -53,6 +68,11 @@ test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip
     for (const [indice, pregunta] of PREGUNTAS.slice(7).entries()) await t.test(`Respaldo académico ${indice + 1}`, async () => {
       const resultado = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: respaldoAcademico(pregunta).sql })
       assert.ok(resultado.filas.length > 0)
+    })
+    for (const [nombre, consulta] of consultasAcademicas) await t.test(`Consulta nueva: ${nombre}`, async () => {
+      const resultado = await ejecutarLectura({ conexion: db, usuario: identidad, consulta })
+      assert.ok(resultado.columnas.length > 0)
+      assert.ok(Array.isArray(resultado.filas))
     })
     const vacia = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: "SELECT numero FROM hotel_consultas.habitacion WHERE estado = 'INEXISTENTE'" })
     assert.deepEqual(vacia.columnas, ['numero']); assert.equal(vacia.filas.length, 0)
