@@ -2,6 +2,7 @@ import { CATALOGO as esquema } from '../_shared/catalogo.mjs'
 import { preguntaGenerica } from '../_shared/preguntas.mjs'
 import { validarSQL } from '../ejecutar-consulta-sql/validar.mjs'
 import { mayusculasCategoricasIncorrectas } from './categorias.mjs'
+import { quitarCercoSQL, respaldoAcademico } from './respaldo.mjs'
 // Edge Function de generación y explicación. No ejecuta SQL ni usa service_role.
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
 const respuesta = (status, error) => new Response(JSON.stringify({ error }), { status, headers: cors })
@@ -54,7 +55,7 @@ export function crearHandler({ obtenerEnv, fetchImpl, reloj = Date.now }) {
       if (palabras.some(p => !permitidos.has(p))) return respuesta(400, 'Usa solo identificadores del catálogo académico para explicar el SQL.')
     }
     const instruccion = entrada.modo === 'generar'
-      ? 'Genera una sola consulta PostgreSQL SELECT o WITH de lectura y una explicación académica en español. Si no se puede resolver, devuelve sql como cadena vacía y explica el motivo. No inventes tablas o columnas. Califica todas las tablas como hotel_consultas.nombre. Para columnas con valores CHECK usa exactamente los literales y las mayúsculas del catálogo. No inventes valores para campos de texto libre. Usa solo funciones COUNT, SUM, AVG, MIN o MAX; no uses CAST explícito, OFFSET, CTE recursivas ni funciones adicionales. Se admiten SELECT, WITH, INNER JOIN, LEFT JOIN, WHERE, GROUP BY, HAVING, ORDER BY y LIMIT. Para fechas usa literales DATE con fecha ISO, CURRENT_DATE y resta entre columnas DATE para días; evita EXTRACT, intervalos y funciones de fecha. Explica supuestos como el significado de cantidad y que CURRENT_DATE usa la fecha de PostgreSQL.'
+      ? 'Genera una sola consulta PostgreSQL SELECT o WITH de lectura y una explicación académica en español. Si no se puede resolver, devuelve sql como cadena vacía y explica el motivo. No inventes tablas o columnas. Califica todas las tablas como hotel_consultas.nombre. Devuelve SQL sin bloques Markdown. Para columnas con valores CHECK usa exactamente los literales y las mayúsculas del catálogo. No inventes valores para campos de texto libre. Usa solo funciones COUNT, SUM, AVG, MIN o MAX con un argumento; no uses DISTINCT dentro de agregaciones, BETWEEN, CAST explícito, OFFSET, CTE recursivas ni funciones adicionales. Se admiten SELECT, WITH, INNER JOIN, LEFT JOIN, WHERE, GROUP BY, HAVING, ORDER BY y LIMIT. Para fechas usa literales DATE con fecha ISO, CURRENT_DATE y resta entre columnas DATE para días; para un año usa fecha >= DATE del primer día y fecha < DATE del primer día del año siguiente. Evita EXTRACT, intervalos y funciones de fecha. Explica supuestos como el significado de cantidad y que CURRENT_DATE usa la fecha de PostgreSQL.'
       : 'Explica en español el SQL sin afirmar que sea correcto. Explica SELECT, JOIN, WHERE, GROUP BY y orden si aparecen. Los literales fueron omitidos; no los adivines. Devuelve sql como cadena vacía.'
     const prompt = `${instruccion}\nResponde únicamente JSON con las claves sql y explicacion, ambas cadenas. No devuelvas datos ni valores inventados.\n${esquema}\nSolicitud:\n${texto}`
     const gemini = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 2048 } }), signal: AbortSignal.timeout(20000) })
@@ -64,7 +65,13 @@ export function crearHandler({ obtenerEnv, fetchImpl, reloj = Date.now }) {
     const resultado = JSON.parse(salida)
     if (typeof resultado.sql !== 'string' || resultado.sql.length > 12000 || typeof resultado.explicacion !== 'string' || resultado.explicacion.length > 8000) return respuesta(502, 'Respuesta de IA inválida.')
     if (entrada.modo === 'generar' && resultado.sql.trim()) {
-      try { validarSQL(resultado.sql) } catch { return respuesta(502, 'La IA generó una consulta fuera del alcance permitido. Inténtalo de nuevo.') }
+      resultado.sql = quitarCercoSQL(resultado.sql)
+      try { validarSQL(resultado.sql) } catch {
+        const respaldo = respaldoAcademico(texto)
+        if (!respaldo) return respuesta(502, 'La consulta generada no es compatible. Reformula la pregunta usando vistas autorizadas, JOIN y rangos de fechas.')
+        validarSQL(respaldo.sql)
+        resultado.sql = respaldo.sql; resultado.explicacion = respaldo.explicacion
+      }
       if (mayusculasCategoricasIncorrectas(resultado.sql)) return respuesta(502, 'La IA generó un estado con mayúsculas incorrectas. Inténtalo de nuevo.')
     }
     return new Response(JSON.stringify({ sql: resultado.sql, explicacion: resultado.explicacion }), { headers: cors })

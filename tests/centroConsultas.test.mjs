@@ -28,3 +28,10 @@ test('invoca Gemini solo con la intención válida y rechaza errores', async () 
   await assert.rejects(() => ia('generar', 'x'))
   await assert.rejects(() => crearConsultaIA({ functions: { invoke: async () => ({ error: true }) } })('explicar', 'SELECT 1'))
 })
+
+test('muestra solo el mensaje fijo de incompatibilidad sin reflejar errores arbitrarios', async () => {
+  const fijo = 'La consulta generada no es compatible. Reformula la pregunta usando vistas autorizadas, JOIN y rangos de fechas.'
+  const cliente = error => ({ functions: { invoke: async () => ({ error: { context: { json: async () => ({ error }) } } }) } })
+  await assert.rejects(() => crearConsultaIA(cliente(fijo))('generar', 'Reservas del hotel'), e => e.message === fijo)
+  await assert.rejects(() => crearConsultaIA(cliente('dato privado'))('generar', 'Reservas del hotel'), e => !e.message.includes('dato privado'))
+})

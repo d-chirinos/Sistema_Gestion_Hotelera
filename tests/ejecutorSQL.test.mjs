@@ -4,6 +4,8 @@ import postgres from 'postgres'
 import { CONSULTAS } from '../src/consultas/catalogo.js'
 import { validarSQL } from '../supabase/functions/ejecutar-consulta-sql/validar.mjs'
 import { ejecutarLectura } from '../supabase/functions/ejecutar-consulta-sql/ejecutor.mjs'
+import { respaldoAcademico } from '../supabase/functions/consultas-gemini/respaldo.mjs'
+import { PREGUNTAS } from '../supabase/functions/_shared/preguntas.mjs'
 
 const identidad = '00000000-0000-4000-8000-000000000001'
 const otro = '00000000-0000-4000-8000-000000000002'
@@ -47,6 +49,10 @@ test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip
       const resultado = await ejecutarLectura({ conexion: db, usuario: identidad, consulta })
       assert.ok(resultado.filas.length > 0)
       if (indice === 2) for (const fila of resultado.filas) assert.equal(fila[4], (Date.parse(fila[2]) - Date.parse(fila[3])) / 86400000)
+    })
+    for (const [indice, pregunta] of PREGUNTAS.slice(7).entries()) await t.test(`Respaldo académico ${indice + 1}`, async () => {
+      const resultado = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: respaldoAcademico(pregunta).sql })
+      assert.ok(resultado.filas.length > 0)
     })
     const vacia = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: "SELECT numero FROM hotel_consultas.habitacion WHERE estado = 'INEXISTENTE'" })
     assert.deepEqual(vacia.columnas, ['numero']); assert.equal(vacia.filas.length, 0)

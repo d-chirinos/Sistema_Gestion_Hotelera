@@ -4,6 +4,8 @@ import { crearHandler } from '../supabase/functions/consultas-gemini/handler.mjs
 import { preguntaGenerica } from '../supabase/functions/_shared/preguntas.mjs'
 import { CATALOGO } from '../supabase/functions/_shared/catalogo.mjs'
 import { readFileSync } from 'node:fs'
+import { PREGUNTAS } from '../supabase/functions/_shared/preguntas.mjs'
+import { validarSQL } from '../supabase/functions/ejecutar-consulta-sql/validar.mjs'
 const configurar = (rol = 'ADMINISTRADOR', sql = 'SELECT numero FROM hotel_consultas.habitacion') => {
   const llamadas = []
   const vars = { SUPABASE_URL: 'https://local.invalid', SUPABASE_ANON_KEY: 'anon-ficticia', GEMINI_API_KEY: 'clave-ficticia', GEMINI_MODEL: 'modelo-ficticio' }
@@ -118,4 +120,33 @@ test('explica consultas con fechas sin enviar sus literales al proveedor', async
   assert.equal(respuesta.status, 200)
   const solicitud = prueba.llamadas.find(x => x.url.includes('googleapis')).options.body
   assert.equal(solicitud.includes('2026-01-01'), false)
+})
+
+test('recupera los tres enunciados sin repetir la llamada y mantiene SQL validado', async () => {
+  const variantes = [
+    'SELECT e.nombre FROM empleado e JOIN mantenimiento m ON m.empleado_id_empleado = e.id_empleado',
+    'SELECT COUNT(DISTINCT id_estadia) FROM hotel_consultas.estadia WHERE EXTRACT(YEAR FROM fecha_checkin) = 2026',
+    "SELECT fecha_entrada - fecha_reserva FROM hotel_consultas.reserva WHERE fecha_entrada BETWEEN DATE '2026-01-01' AND DATE '2026-12-31'",
+  ]
+  for (const [i, sql] of variantes.entries()) {
+    const prueba = configurar('ADMINISTRADOR', sql)
+    const respuesta = await prueba.pedir({ modo: 'generar', texto: PREGUNTAS[i + 7] })
+    assert.equal(respuesta.status, 200)
+    const salida = await respuesta.json()
+    assert.match(salida.explicacion, /respaldo predefinida/)
+    assert.ok(validarSQL(salida.sql))
+    assert.equal(prueba.llamadas.filter(x => x.url.includes('googleapis')).length, 1)
+  }
+})
+
+test('quita únicamente un cerco Markdown completo y no filtra SQL incompatible', async () => {
+  const prueba = configurar('ADMINISTRADOR', '```sql\nSELECT numero FROM hotel_consultas.habitacion\n```')
+  const respuesta = await prueba.pedir({ modo: 'generar', texto: PREGUNTAS[0] })
+  assert.equal(respuesta.status, 200)
+  assert.equal((await respuesta.json()).sql, 'SELECT numero FROM hotel_consultas.habitacion')
+  const secreta = 'SENTINELA_DATO_PRIVADO'
+  const invalida = configurar('ADMINISTRADOR', `SELECT ${secreta} FROM public.cliente`)
+  const rechazada = await invalida.pedir({ modo: 'generar', texto: PREGUNTAS[0] })
+  assert.equal(rechazada.status, 502)
+  assert.doesNotMatch(await rechazada.text(), /SENTINELA_DATO_PRIVADO/)
 })
