@@ -127,3 +127,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .welcome-option-action { grid-column: 2; }
   .welcome-access--selection .welcome-subtitle { margin-bottom: 20px; }
 }
+
+/* La marca y la selección comparten una composición compacta y práctica. */
+.welcome-screen--transition .welcome-access--selection, .welcome-screen--ready .welcome-access--selection { width: min(1050px, calc(100% - 48px)); display: grid; grid-template-columns: 1fr 1.08fr; padding: 0; overflow: hidden; }
+.navy-access-heading { display: flex; flex-direction: column; justify-content: center; padding: clamp(32px, 5vw, 62px); background: linear-gradient(145deg, #14243d, #293f61); }
+.welcome-access--selection .navy-access-heading h1 { color: #fff; font-size: clamp(29px, 3vw, 39px); }
+.welcome-access--selection .navy-access-heading .welcome-eyebrow { color: #d3e0f1; }
+.welcome-access--selection .navy-access-heading .welcome-subtitle { color: #dce5f1; line-height: 1.6; }
+.navy-access-heading .navy-access-mark { background: #e5b980; color: #14243d; }
+.access-features { display: flex; flex-wrap: wrap; gap: 8px; }
+.access-features span { padding: 7px 10px; border: 1px solid #ffffff38; border-radius: 20px; color: #e6eef8; font-size: 11px; }
+.access-roles { padding: clamp(28px, 4vw, 48px); }
+.access-roles-label { margin: 0 0 15px; color: #657e9c; font-size: 10px; letter-spacing: .12em; font-weight: 750; }
+.access-roles .welcome-options { grid-template-columns: 1fr; gap: 10px; }
+.access-roles .welcome-option { min-height: 112px; display: grid; grid-template-columns: 45px minmax(0, 1fr); gap: 10px 14px; padding: 17px; }
+.access-roles .welcome-option-action { grid-column: 2; }
+@media (max-width: 650px) {
+  .welcome-screen--transition .welcome-access--selection, .welcome-screen--ready .welcome-access--selection { width: calc(100% - 32px); grid-template-columns: 1fr; margin-top: 92px; }
+  .navy-access-heading { padding: 25px; }
+  .navy-access-heading .navy-access-mark { margin-bottom: 12px; }
+  .welcome-access--selection .navy-access-heading h1 { font-size: 27px; }
+  .welcome-access--selection .navy-access-heading .welcome-subtitle { margin: 9px 0 14px; }
+  .access-roles { padding: 23px 25px 27px; }
+}

@@ -11,6 +11,8 @@ function expresion(e, ctes) {
   if (!e || typeof e !== 'object') fallo()
   if (e.type === 'select' || e.type === 'with') return sentencia(e, ctes)
   switch (e.type) {
+    case 'keyword': claves(e, ['type','keyword']); if (e.keyword !== 'current_date') fallo(); break
+    case 'cast': claves(e, ['type','operand','to']); claves(e.to, ['name']); if (e.to.name !== 'date' || e.operand?.type !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.operand.value)) fallo(); expresion(e.operand, ctes); break
     case 'ref': claves(e, ['type','name','table']); if (typeof e.name !== 'string' || e.name.length > 63) fallo(); if (e.table) nombre(e.table); break
     case 'string': case 'integer': case 'numeric': case 'boolean': case 'null': claves(e, ['type','value']); break
     case 'binary': claves(e, ['type','left','right','op']); if (!operadores.has(String(e.op).toUpperCase())) fallo(); expresion(e.left, ctes); expresion(e.right, ctes); break

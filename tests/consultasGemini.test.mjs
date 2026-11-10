@@ -93,6 +93,29 @@ test('admite preguntas genéricas variadas y rechaza identificadores personales'
   const { pedir, llamadas } = configurar()
   assert.equal((await pedir({ modo: 'generar', texto: 'Mostrar el total de pagos por estado de reserva' })).status, 200)
   assert.equal((await pedir({ modo: 'generar', texto: 'Mostrar reservas de Paola Mendoza' })).status, 400)
-  assert.equal((await pedir({ modo: 'generar', texto: 'Mostrar reserva 123456' })).status, 400)
-  assert.equal(llamadas.filter(x => x.url.includes('googleapis')).length, 1)
+  assert.equal((await pedir({ modo: 'generar', texto: 'Mostrar reservas con importes mayores a 100 en 2026' })).status, 200)
+  assert.equal(llamadas.filter(x => x.url.includes('googleapis')).length, 2)
+})
+
+test('acepta los enunciados académicos y preserva el año enviado al proveedor simulado', async () => {
+  const casos = [
+    ['Visualizar el nombre y apellido del empleado, tipo de mantenimiento, número y piso de habitación realizadas a la fecha.', 'SELECT e.nombre, e.apellido, m.tipo, h.numero, h.piso FROM hotel_consultas.mantenimiento m JOIN hotel_consultas.empleado e ON e.id_empleado = m.empleado_id_empleado JOIN hotel_consultas.habitacion h ON h.id_habitacion = m.habitacion_id_habitacion WHERE m.fecha_inicio <= CURRENT_DATE'],
+    ['Visualizar nombre de servicio y cantidad de los check-in del 2026.', "SELECT s.nombre, SUM(c.cantidad) AS cantidad FROM hotel_consultas.servicio s JOIN hotel_consultas.consumo_servicio c ON c.servicio_id_servicio = s.id_servicio JOIN hotel_consultas.estadia e ON e.id_estadia = c.estadia_id_estadia WHERE e.fecha_checkin >= DATE '2026-01-01' AND e.fecha_checkin < DATE '2027-01-01' GROUP BY s.nombre"],
+    ['Visualizar la cantidad de días que cada cliente reserva con anterioridad a la fecha que va a usar el hotel.', 'SELECT c.nombre, c.apellido, r.fecha_entrada - r.fecha_reserva AS dias FROM hotel_consultas.cliente c JOIN hotel_consultas.reserva r ON r.cliente_id_cliente = c.id_cliente'],
+  ]
+  for (const [texto, sql] of casos) {
+    const prueba = configurar('ADMINISTRADOR', sql)
+    const respuesta = await prueba.pedir({ modo: 'generar', texto })
+    assert.equal(respuesta.status, 200, texto)
+    assert.equal((await respuesta.json()).sql, sql)
+    if (texto.includes('2026')) assert.ok(prueba.llamadas.find(x => x.url.includes('googleapis')).options.body.includes('2026'))
+  }
+})
+
+test('explica consultas con fechas sin enviar sus literales al proveedor', async () => {
+  const prueba = configurar()
+  const respuesta = await prueba.pedir({ modo: 'explicar', texto: "SELECT fecha_inicio FROM hotel_consultas.mantenimiento WHERE fecha_inicio >= DATE '2026-01-01' AND fecha_inicio <= CURRENT_DATE" })
+  assert.equal(respuesta.status, 200)
+  const solicitud = prueba.llamadas.find(x => x.url.includes('googleapis')).options.body
+  assert.equal(solicitud.includes('2026-01-01'), false)
 })

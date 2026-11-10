@@ -20,6 +20,11 @@ test('el analizador acepta las 16 consultas y bloquea sentencias y funciones pel
   for (const q of ["INSERT INTO public.cliente VALUES (1)", "UPDATE public.cliente SET nombre = 'X'", "DELETE FROM hotel_consultas.reserva", 'DROP TABLE public.cliente', "SELECT * FROM hotel_consultas.reserva; SELECT * FROM hotel_consultas.habitacion", "SELECT * FROM hotel_consultas.reserva; DELETE FROM public.reserva", "WITH x AS (DELETE FROM public.reserva RETURNING *) SELECT * FROM x", "SELECT pg_sleep(1) FROM hotel_consultas.reserva", "SELECT set_config('request.jwt.claim.sub','x',true) FROM hotel_consultas.reserva", 'SELECT * FROM pg_catalog.pg_class', 'SELECT * FROM public.cliente', 'SELECT * FROM hotel_consultas.reserva FOR UPDATE', 'SELECT * FROM hotel_consultas.reserva OFFSET 2', 'SELECT * FROM hotel_consultas.reserva LIMIT 1001', 'SELECT ' + 'a'.repeat(8001) + ' FROM hotel_consultas.reserva', "SELECT nextval('x') FROM hotel_consultas.reserva"]) assert.throws(() => validarSQL(q), /no admitida/i, q)
 })
 
+test('admite fecha actual y literales DATE sin abrir otros casts o funciones', () => {
+  for (const q of ["SELECT fecha_entrada - fecha_reserva FROM hotel_consultas.reserva", "SELECT fecha_inicio FROM hotel_consultas.mantenimiento WHERE fecha_inicio <= CURRENT_DATE", "SELECT fecha_checkin FROM hotel_consultas.estadia WHERE fecha_checkin >= DATE '2026-01-01'"]) assert.ok(validarSQL(q))
+  for (const q of ["SELECT CURRENT_USER FROM hotel_consultas.reserva", "SELECT CAST('public.cliente' AS regclass) FROM hotel_consultas.reserva", "SELECT CAST(numero AS DATE) FROM hotel_consultas.habitacion", "SELECT current_date() FROM hotel_consultas.reserva", "SELECT pg_sleep(1) FROM hotel_consultas.reserva"]) assert.throws(() => validarSQL(q), /no admitida/i)
+})
+
 test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip: !conexionURL, timeout: 30000 }, async t => {
   const db = postgres(conexionURL, { max: 1, ssl: false, prepare: false })
   try {
@@ -33,6 +38,16 @@ test('PostgreSQL local: ejemplos, aislamiento, restricciones y límites', { skip
         t.diagnostic(`${ejemplo.categoria}: ${ejemplo.titulo}: ${resultado.filas.length} filas`)
       })
     }
+    const ejercicios = [
+      'SELECT e.nombre, e.apellido, m.tipo, h.numero, h.piso FROM hotel_consultas.mantenimiento m JOIN hotel_consultas.empleado e ON e.id_empleado = m.empleado_id_empleado JOIN hotel_consultas.habitacion h ON h.id_habitacion = m.habitacion_id_habitacion WHERE m.fecha_inicio <= CURRENT_DATE',
+      "SELECT s.nombre, SUM(c.cantidad) AS cantidad FROM hotel_consultas.servicio s JOIN hotel_consultas.consumo_servicio c ON c.servicio_id_servicio = s.id_servicio JOIN hotel_consultas.estadia e ON e.id_estadia = c.estadia_id_estadia WHERE e.fecha_checkin >= DATE '2026-01-01' AND e.fecha_checkin < DATE '2027-01-01' GROUP BY s.nombre",
+      'SELECT c.nombre, c.apellido, r.fecha_entrada, r.fecha_reserva, r.fecha_entrada - r.fecha_reserva AS dias FROM hotel_consultas.cliente c JOIN hotel_consultas.reserva r ON r.cliente_id_cliente = c.id_cliente',
+    ]
+    for (const [indice, consulta] of ejercicios.entries()) await t.test(`Ejercicio académico ${indice + 1}`, async () => {
+      const resultado = await ejecutarLectura({ conexion: db, usuario: identidad, consulta })
+      assert.ok(resultado.filas.length > 0)
+      if (indice === 2) for (const fila of resultado.filas) assert.equal(fila[4], (Date.parse(fila[2]) - Date.parse(fila[3])) / 86400000)
+    })
     const vacia = await ejecutarLectura({ conexion: db, usuario: identidad, consulta: "SELECT numero FROM hotel_consultas.habitacion WHERE estado = 'INEXISTENTE'" })
     assert.deepEqual(vacia.columnas, ['numero']); assert.equal(vacia.filas.length, 0)
     const consulta = 'SELECT id_habitacion, numero FROM hotel_consultas.habitacion ORDER BY id_habitacion'
