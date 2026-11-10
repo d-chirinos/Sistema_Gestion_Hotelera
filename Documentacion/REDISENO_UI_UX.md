@@ -12,3 +12,9 @@ Referencias públicas consultadas para patrones generales, sin copiar marcas ni 
 - [shadcn/ui: tablas de datos](https://ui.shadcn.com/docs/components/base/data-table) y [dashboard](https://ui.shadcn.com/blocks/dashboard): tablas reutilizables y composición de paneles.
 
 Las referencias se utilizaron como orientación de organización, no como especificación funcional. No se introdujo un calendario ni acciones que no existían en HotelManager.
+
+## Segunda dirección: recepción digital
+
+La segunda iteración parte de la observación de que la pantalla anterior repetía ocho tarjetas de igual peso y dejaba mucho espacio vacío en el acceso. La nueva composición combina una portada de acceso en dos planos, titulares editoriales y una paleta cálida con navegación agrupada por tareas. En el Dashboard, cinco indicadores comparten una franja y las métricas secundarias acompañan la actividad; ocupación, próximas reservas, pagos y alertas conservan sus fuentes y estados existentes. El centro SQL usa un editor de alto contraste y mantiene sus modalidades y resultados.
+
+`src/PremiumHotel.css` concentra las reglas de esta dirección sobre el sistema visual anterior. No añade fuentes de datos ni operaciones. Los módulos, filtros, permisos, formatos y consultas siguen sujetos a la configuración y a los controles ya existentes; la información que no está disponible sigue mostrándose como tal.
