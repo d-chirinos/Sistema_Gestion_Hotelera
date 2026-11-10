@@ -1,0 +1,129 @@
+/* Identidad azul noche, acero y dorado. Los colores semánticos permanecen diferenciados. */
+:root {
+  --hotel-ink: #172c48;
+  --hotel-secondary: #60718a;
+  --hotel-canvas: #f4f6fa;
+  --hotel-line: #e0e7f0;
+  --hotel-gold: #e5b980;
+  --hm-d-brand: #355d91;
+  --hm-d-brand-dark: #213f6c;
+  --hm-table-head: #f6f8fb;
+}
+body, .real-app, .real-app .main-content { background: #f4f6fa; color: #172c48; }
+.real-app .real-sidebar { background: #14243d; color: #f3f6fb; }
+.hm-brand-symbol { border-color: #e5b980; color: #f2d4a8; }
+.real-sidebar .logo span { color: #c7d8ec; }
+.real-sidebar .premium-nav-group .menu-title { color: #98acc6; }
+.real-sidebar nav { scrollbar-color: #566f92 transparent; }
+.real-sidebar nav button { color: #cad5e5; }
+.real-sidebar nav button:hover { background: #ffffff10; }
+.real-sidebar nav button.active { background: #2e4c76; box-shadow: inset 3px 0 #e5b980; color: #fff; }
+.real-sidebar nav button.active svg { color: #f1ce98; }
+.real-sidebar .sidebar-footer { border-color: #ffffff1c; color: #a9b8ca; }
+.real-sidebar .sidebar-footer span { color: #c1d4ec; }
+.real-app .real-topbar { background: #fff; border-color: #e1e8f0; }
+.hm-module-heading > svg { color: #4a6fa5; }
+.real-topbar-actions .avatar { background: #ebf0f8; color: #294e7e; }
+.real-source { background: #f0f5fc; border-color: #dfe8f5; color: #3e6289; }
+.real-source svg { color: #4a6fa5; }
+.real-logout, .real-menu-toggle { background: #fff; border-color: #dce4ee; color: #2c4f7c; }
+.real-app .main-content table th { background: #f6f8fb; color: #596e89; }
+.real-app .main-content table td { border-color: #edf1f6; color: #344a65; }
+.real-app .main-content table tbody tr:hover { background: #f4f7fc; }
+.hm-res-filter, .room-list, .reservations-list, .hm-sql-panel, .hm-hotel-cards article, .hm-res-stat { background: #fff; border-color: #e1e7ef; box-shadow: 0 7px 25px #1b315008; }
+.hm-res-stat strong, .premium-kpi-label { color: #5d7089; }
+.reservations-eyebrow, .premium-section-heading span, .premium-operation-heading > div:first-child > span { color: #6783a8; }
+.hm-res-filter-grid { background: #f4f7fb; }
+.reservation-search, .real-app input:not([type=checkbox]):not([type=radio]), .real-app select, .real-app textarea { border-color: #d9e3ef; color: #263e5e; }
+.reservation-new-button, .real-action-launch > button, .welcome-submit-button { background: #355d91; border-color: #355d91; color: #fff; }
+.reservation-new-button:hover:not(:disabled), .real-action-launch > button:hover:not(:disabled), .welcome-submit-button:hover:not(:disabled) { background: #213f6c; border-color: #213f6c; }
+.list-clear-button, .hm-res-pages button { border-color: #dce5f0; color: #375477; background: #fff; }
+.hm-res-pages button[aria-current=page] { background: #355d91; border-color: #355d91; color: #fff; }
+.hm-res-row-actions button { background: #f6f8fc; border-color: #e0e8f2; color: #355d91; }
+.rooms-subnav, .hm-sql-tabs { border-color: #dfe7f0; }
+.rooms-subnav button.active, .hm-sql-tabs button.active, .hm-sql-tabs button[aria-selected=true] { background: #ebf1f9; color: #294f80; border-color: #4a6fa5; }
+.hm-dash-icon--blue, .hm-dash-icon--teal { background: #e9f0fa; color: #4a6fa5; }
+.hm-dash-icon--green { background: #e8f4ed; color: #34805c; }
+.hm-dash-icon--purple { background: #f0edf8; color: #76639c; }
+.hm-dash-icon--orange { background: #fcf0e1; color: #a96c28; }
+.real-dialog { background: #fff; border-color: #e0e7f0; }
+.real-dialog::backdrop { background: #101f35b8; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline-color: #6d91c0; }
+
+/* El Dashboard conserva su estructura operativa y utiliza la identidad nocturna. */
+.premium-dash-hero { background: linear-gradient(115deg, #14243d, #294568); color: #fff; }
+.premium-kicker, .premium-hero-meta span { color: #d5dfed; }
+.premium-kicker > span { background: #e5b980; }
+.premium-dash-hero p, .premium-hero-meta small { color: #d9e4f1; }
+.premium-hero-meta { border-color: #dce8f143; }
+.premium-section-heading h2, .premium-operation-heading h2, .premium-dashboard .hm-dash-panel header h2 { color: #1c3250; }
+.premium-section-heading p, .premium-operation-totals, .premium-dashboard .hm-dash-panel header p { color: #687c94; }
+.premium-operation-totals strong, .premium-kpi > strong { color: #203c60; }
+.premium-kpi-strip { background: #fff; border-color: #e1e7ef; box-shadow: 0 8px 28px #1b315008; }
+.premium-kpi { border-color: #edf0f5; }
+.premium-kpi > small { color: #72839a; }
+.premium-dashboard .hm-dash-panel { background: #fff; border-color: #e1e7ef; }
+.premium-dashboard .hm-dash-day { background: #e9f0fa; color: #355d91; }
+/* Confirmaciones y advertencias siguen utilizando colores semánticos. */
+.premium-dashboard .hm-dash-badge { background: #e6f4eb; color: #30734d; }
+.premium-dashboard .hm-dash-grid--bottom > .hm-dash-panel:first-child { background: #fffbf4; border-color: #f0e7d8; }
+.premium-dashboard .hm-dash-alerts > div { background: #fffdf8; border-color: #f0e8da; }
+.hm-dash-total { background: #f0f5fb; }
+
+/* Espacio de consultas integrado, con editor legible en azul noche. */
+.hm-sql .hm-sql-panel { border-color: #e1e7ef; }
+.hm-sql .hm-sql-editor { border-color: #293f60; background: #14243d; }
+.hm-sql .hm-sql-editor > div { background: #101e34; color: #aebfd4; }
+.hm-sql .hm-sql-editor textarea { color: #eef4fb !important; caret-color: #e5b980; }
+.hm-sql .hm-sql-editor textarea::placeholder { color: #b3c2d5; }
+.hm-sql-examples article { background: #fafbfe; }
+.hm-sql-examples pre, .hm-sql-panel details pre { background: #f0f4fa; color: #294b73; }
+.hm-sql-notice { background: #eef4fc; color: #355a84; }
+
+/* Acceso: un único panel de producto, con selección de roles protagonista. */
+.welcome-screen, .welcome-screen--transition, .welcome-screen--ready { display: flex; background: #f4f6fa; color: #172c48; }
+.welcome-screen--intro { background: #14243d; }
+.welcome-screen .welcome-brand { --welcome-brand-destination-top: 28px; --welcome-brand-destination-left: 38px; --welcome-brand-destination-transform: translate(0, 0) scale(.64); }
+.welcome-screen--transition .welcome-brand-name, .welcome-screen--ready .welcome-brand-name { color: #14243d; }
+.welcome-screen--transition .welcome-brand-name span, .welcome-screen--ready .welcome-brand-name span { color: #4a6fa5; }
+.welcome-brand-mark { border-color: #e5b980; background: #14243d; }
+.welcome-brand-mark svg { stroke: #e5b980; }
+.welcome-screen--transition .welcome-access, .welcome-screen--ready .welcome-access { width: min(860px, calc(100% - 48px)); margin: auto; padding: 46px; color: #172c48; text-align: left; }
+.welcome-access--selection { background: #fff; border: 1px solid #e0e7f0; border-radius: 20px; box-shadow: 0 24px 70px #1d355210; }
+.navy-access-heading { max-width: 630px; }
+.navy-access-mark { display: grid; width: 45px; height: 45px; margin-bottom: 24px; place-items: center; border-radius: 12px; background: #14243d; color: #e5b980; font: 600 26px Georgia, serif; }
+.welcome-access--selection .welcome-eyebrow { margin-bottom: 9px; color: #617c9d; font-size: 10px; letter-spacing: .13em; }
+.welcome-access--selection h1 { color: #14243d; font-size: clamp(29px, 3vw, 38px); }
+.welcome-access--selection .welcome-subtitle { margin: 10px 0 28px; color: #65758b; font-size: 14px; }
+.welcome-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.welcome-option { display: flex; min-height: 193px; align-items: flex-start; flex-direction: column; gap: 15px; padding: 22px; border: 1px solid #dfe7f1; border-radius: 13px; background: #fafbfd; box-shadow: none; }
+.welcome-option:hover { border-color: #8da7c9; background: #f3f7fc; box-shadow: 0 8px 24px #253e6010; }
+.welcome-option:focus-visible { outline-color: #4a6fa5; }
+.welcome-option-icon--admin, .welcome-option-icon--employee { width: 45px; height: 45px; border-radius: 11px; background: #eaf0f9; color: #4a6fa5; }
+.welcome-option-icon--admin { background: #f8efe3; color: #9b713c; }
+.welcome-option-copy { gap: 6px; }
+.welcome-option-copy strong { color: #1e3657; font-size: 16px; }
+.welcome-option-copy > span { color: #64768e; font-size: 12px; }
+.welcome-option-action { margin-top: auto; color: #355d91; font-size: 12px; font-weight: 750; }
+.welcome-option-action > span { color: #355d91; }
+.welcome-note { margin: 24px 0 0; color: #71839a; font-size: 12px; text-align: left; }
+.welcome-note > span { margin-right: 7px; color: #bd905a; font-size: 10px; }
+.welcome-screen--ready .welcome-access--admin, .welcome-screen--ready .welcome-access--employee, .welcome-screen--transition .welcome-access--admin, .welcome-screen--transition .welcome-access--employee { width: min(550px, calc(100% - 48px)); padding: 0; }
+.welcome-form-card { background: #fff; border-color: #e0e7f0; box-shadow: 0 24px 70px #1d355210; }
+.welcome-form-card h1 { color: #14243d; }
+.welcome-back-button, .welcome-password-toggle { color: #355d91; }
+.welcome-input-field input { border-color: #d8e2ef; }
+
+@media (max-width: 1100px) {
+  .premium-kpi:nth-child(n+4) { border-color: #edf0f5; }
+}
+@media (max-width: 650px) {
+  .welcome-screen .welcome-brand { --welcome-brand-destination-top: 18px; --welcome-brand-destination-left: 20px; --welcome-brand-destination-transform: translate(0, 0) scale(.56); }
+  .welcome-screen--transition .welcome-access, .welcome-screen--ready .welcome-access { width: calc(100% - 32px); margin: 105px auto 24px; padding: 25px; }
+  .welcome-screen--ready .welcome-access--admin, .welcome-screen--ready .welcome-access--employee, .welcome-screen--transition .welcome-access--admin, .welcome-screen--transition .welcome-access--employee { width: calc(100% - 32px); padding: 0; }
+  .navy-access-mark { margin-bottom: 17px; }
+  .welcome-options { grid-template-columns: 1fr; gap: 10px; }
+  .welcome-option { min-height: 0; padding: 16px; display: grid; grid-template-columns: 45px minmax(0,1fr); gap: 12px; }
+  .welcome-option-action { grid-column: 2; }
+  .welcome-access--selection .welcome-subtitle { margin-bottom: 20px; }
+}

@@ -139,6 +139,10 @@ test('el sistema visual mantiene navegación y consulta accesibles en escritorio
   await entrar(page)
   await expect(page.getByRole('heading', { name: 'Bienvenido a Hotel de prueba' })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('dashboard.png'), fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('dashboard-movil.png'), fullPage: true })
+  await page.setViewportSize({ width: 1280, height: 720 })
   await page.getByRole('navigation', { name: 'Menú principal' }).getByRole('button', { name: 'Consultas SQL' }).click()
   await expect(page.getByRole('tab', { name: 'SQL manual' })).toBeVisible()
   await page.getByRole('tab', { name: 'Consultas preparadas' }).click()
@@ -150,13 +154,14 @@ test('el sistema visual mantiene navegación y consulta accesibles en escritorio
   await page.screenshot({ path: testInfo.outputPath('consultas-movil.png'), fullPage: true })
 })
 
-test('la selección y el acceso mantienen usabilidad en móvil', async ({ page }) => {
+test('la selección y el acceso mantienen usabilidad en móvil', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await configurarSupabase(page)
   await page.goto('./')
   await expect(page.getByRole('button', { name: /Administrador/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Empleado/ })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('acceso-movil.png'), fullPage: true })
   await page.getByRole('button', { name: /Empleado/ }).click()
   await expect(page.getByLabel('Correo electrónico')).toBeVisible()
   await expect(page.getByLabel('Contraseña', { exact: true })).toBeVisible()

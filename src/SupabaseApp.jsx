@@ -25,6 +25,7 @@ import './App.css'
 import './SupabaseApp.css'
 import './HotelManagerDesign.css'
 import './PremiumHotel.css'
+import './NavyHotel.css'
 
 function Tarjetas({ habitaciones }) {
   const iconos = [BedDouble, Check, BedDouble, Wrench], colores = ['blue', 'green', 'purple', 'orange']
