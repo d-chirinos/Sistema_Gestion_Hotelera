@@ -34,7 +34,17 @@ jobs:
         run: npm ci
 
       - name: Build application
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_RESERVAS_LECTURA: "true"
+          VITE_OPERACIONES_LECTURA: "true"
+          VITE_CLIENTES_HOTEL: "true"
+          VITE_PRIMERA_RESERVA: "true"
+          VITE_CENTRO_SQL_EJECUCION: "true"
+          VITE_CENTRO_SQL_IA: "true"
         run: npm run build
+
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
