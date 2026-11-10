@@ -128,3 +128,21 @@ test('el catálogo pagina y filtra datos reales recibidos', async ({ page }) => 
   await expect(page.getByText('101', { exact: true })).toBeVisible()
   await expect(page.getByText('Página 1 de 1')).toBeVisible()
 })
+
+test('el sistema visual mantiene navegación y consulta accesibles en escritorio y móvil', async ({ page }, testInfo) => {
+  const errores = []
+  page.on('pageerror', error => errores.push(error.message))
+  await configurarSupabase(page)
+  await entrar(page)
+  await expect(page.getByRole('heading', { name: 'Bienvenido a Hotel de prueba' })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('dashboard.png'), fullPage: true })
+  await page.getByRole('navigation', { name: 'Menú principal' }).getByRole('button', { name: 'Consultas SQL' }).click()
+  await expect(page.getByRole('tab', { name: 'SQL manual' })).toBeVisible()
+  await page.getByRole('tab', { name: 'Consultas preparadas' }).click()
+  await expect(page.getByText('Habitaciones disponibles', { exact: true })).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole('button', { name: /Menú/ })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  expect(errores).toEqual([])
+  await page.screenshot({ path: testInfo.outputPath('consultas-movil.png'), fullPage: true })
+})

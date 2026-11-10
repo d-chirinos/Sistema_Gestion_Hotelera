@@ -1,0 +1,159 @@
+/* Sistema visual compartido. Los componentes existentes conservan su comportamiento. */
+:root {
+  --hm-d-canvas: #f4f6f8;
+  --hm-d-surface: #fff;
+  --hm-d-ink: #172936;
+  --hm-d-muted: #657786;
+  --hm-d-border: #e3e9ed;
+  --hm-d-brand: #185e5a;
+  --hm-d-brand-dark: #123e3d;
+  --hm-d-accent: #c9a56b;
+  --hm-d-shadow: 0 8px 28px rgba(28, 47, 56, .045);
+  --hm-d-radius: 14px;
+  --hm-ink: var(--hm-d-ink);
+  --hm-text: var(--hm-d-ink);
+  --hm-muted: var(--hm-d-muted);
+  --hm-border: var(--hm-d-border);
+  --hm-surface: var(--hm-d-surface);
+  --hm-canvas: var(--hm-d-canvas);
+  --hm-table-head: #f7f9fa;
+}
+
+body { color: var(--hm-d-ink); background: var(--hm-d-canvas); font-family: Inter, 'Segoe UI', sans-serif; }
+button, input, select, textarea { font-family: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #75b4ac; outline-offset: 2px; }
+
+/* Navegación y estructura */
+.real-app { background: var(--hm-d-canvas); }
+.real-app .real-sidebar { width: 240px; padding: 25px 16px 20px; background: #142c32; color: #eff7f5; }
+.hm-brand-lockup { display: flex; align-items: center; gap: 11px; padding: 0 5px 24px; border-bottom: 1px solid #ffffff18; }
+.hm-brand-symbol { display: grid; width: 39px; height: 39px; flex: none; place-items: center; border: 1px solid #dec693; border-radius: 11px; color: #f3dbad; font: 600 23px Georgia, serif; }
+.real-sidebar .logo { margin: 0; color: #fff; font-size: 17px; letter-spacing: -.045em; line-height: 1.1; }
+.real-sidebar .logo span { color: #b7d6ce; }
+.hm-brand-caption { display: block; margin-top: 5px; color: #a0b7b6; font-size: 9px; font-weight: 700; letter-spacing: .12em; }
+.real-sidebar .menu-title { margin: 26px 10px 12px; color: #9cb1b3; font-size: 10px; letter-spacing: .12em; }
+.real-sidebar nav { gap: 3px; }
+.real-sidebar nav button { min-height: 42px; padding: 10px 11px; color: #b9cccd; font-size: 13px; font-weight: 550; border-radius: 9px; transition: background .16s, color .16s; }
+.real-sidebar nav button:hover { background: #ffffff0d; color: #fff; }
+.real-sidebar nav button.active { background: #2a5555; color: #fff; box-shadow: inset 3px 0 #d6bd85; }
+.real-sidebar nav button.active svg { color: #d7c596; }
+.real-sidebar .sidebar-footer { margin-top: auto; padding: 18px 10px 0; border-top: 1px solid #ffffff18; color: #a8babb; line-height: 1.6; }
+.real-sidebar .sidebar-footer span { color: #b7dacf; }
+.real-app .main-content { background: var(--hm-d-canvas); }
+.real-app .main-content::before { display: none; }
+.real-app .real-topbar { min-height: 72px; padding: 13px clamp(22px, 3vw, 42px); background: #fff; border-bottom: 1px solid var(--hm-d-border); box-shadow: none; }
+.real-topbar h2 { font-size: 17px; font-weight: 700; letter-spacing: -.025em; }
+.real-topbar p { margin-top: 3px; color: var(--hm-d-muted); font-size: 12px; }
+.hm-module-heading > svg { color: var(--hm-d-brand); }
+.real-topbar-actions .avatar { background: #e5f0ed; color: var(--hm-d-brand); }
+.real-topbar-actions .user small { color: var(--hm-d-muted); }
+.real-logout, .real-menu-toggle { min-height: 39px; color: #314c53; border: 1px solid #dce5e5; border-radius: 9px; background: white; font-size: 12px; }
+.real-source { padding: 9px clamp(22px, 3vw, 42px); border-bottom: 1px solid #e1edeb; background: #f2f8f6; color: #386d60; font-size: 12px; }
+.real-source svg { color: #4a927b; }
+
+/* Jerarquía de páginas e indicadores */
+.hm-dashboard, .rooms-modern-section, .reservations-section, .hm-gestion, .hm-sql { max-width: 1800px; margin-inline: auto; padding: 32px clamp(22px, 3vw, 42px) 54px; }
+.reservations-heading, .hm-dash-welcome { margin-bottom: 26px; }
+.reservations-eyebrow, .hm-dash-section-label { color: #63857e; font-size: 10px; font-weight: 750; letter-spacing: .12em; }
+.rooms-modern-section .welcome h1, .reservations-section .welcome h1, .hm-sql .welcome h1, .hm-dash-welcome h1 { color: var(--hm-d-ink); font-size: clamp(25px, 2vw, 31px); font-weight: 700; letter-spacing: -.035em; }
+.rooms-modern-section .welcome p, .reservations-section .welcome p, .hm-sql .welcome p, .hm-dash-welcome p { color: var(--hm-d-muted); font-size: 14px; line-height: 1.5; }
+.reservations-heading-note, .hm-dash-date { border: 1px solid var(--hm-d-border); border-radius: 11px; box-shadow: none; }
+.hm-res-stats, .hm-dash-cards { gap: 14px; margin-bottom: 24px; }
+.hm-res-stat, .hm-dash-card { background: #fff; border: 1px solid var(--hm-d-border); border-radius: var(--hm-d-radius); box-shadow: var(--hm-d-shadow); }
+.hm-res-stat { min-height: 116px; padding: 19px; border-top: 1px solid var(--hm-d-border); }
+.hm-res-stat strong, .hm-dash-card > span:not(.hm-dash-icon) { color: #5c707c; font-size: 12px; font-weight: 650; }
+.hm-res-stat b, .hm-dash-card > strong { color: var(--hm-d-ink); font-size: 27px; font-weight: 700; letter-spacing: -.04em; }
+.hm-res-stat small, .hm-dash-card small { color: #71838c; font-size: 11px; }
+.hm-dash-icon { width: 39px; height: 39px; border-radius: 11px; }
+.hm-dash-icon--blue, .hm-dash-icon--teal { background: #e7f2ef; color: #287469; }
+.hm-dash-icon--green { background: #e8f3ec; color: #34805c; }
+.hm-dash-icon--purple { background: #efedf7; color: #71629a; }
+.hm-dash-icon--orange { background: #faf0df; color: #a87932; }
+.hm-dash-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hm-dash-card, .hm-dash-card--compact { align-items: flex-start; justify-content: flex-start; min-height: 128px; padding: 17px 19px; text-align: left; }
+.hm-dash-card--compact > strong { font-size: 25px; }
+.hm-dash-grid { gap: 16px; margin-bottom: 16px; }
+.hm-dash-grid--top { grid-template-columns: 1.05fr 1fr 1fr; }
+.hm-dash-panel, .hm-dash-extra, .hm-hotel-cards article { padding: 22px; border: 1px solid var(--hm-d-border); border-radius: var(--hm-d-radius); background: #fff; box-shadow: var(--hm-d-shadow); }
+.hm-dash-panel header h2 { color: var(--hm-d-ink); font-size: 15px; }
+.hm-dash-panel header p, .hm-dash-panel footer, .hm-dash-list-copy small, .hm-dash-legend { color: var(--hm-d-muted); font-size: 12px; }
+.hm-dash-list li { padding: 11px 0; }
+.hm-dash-hotel, .hm-dash-empty { font-size: 13px; }
+
+/* Tablas, filtros y acciones: comunes a todos los módulos operativos. */
+.hm-res-filter, .room-list, .reservations-list, .hm-sql-panel { border: 1px solid var(--hm-d-border); border-radius: var(--hm-d-radius); background: #fff; box-shadow: var(--hm-d-shadow); }
+.hm-res-filter { padding: 18px; margin-bottom: 16px; }
+.hm-res-filter-grid { border-radius: 10px; background: #f6f8f8; }
+.room-list, .reservations-list { overflow: hidden; }
+.room-list-header h2, .reservations-list-header h2 { color: var(--hm-d-ink); font-size: 16px; }
+.table-container { max-width: 100%; overflow-x: auto; }
+.real-app .main-content table { width: 100%; border-collapse: collapse; }
+.real-app .main-content table th { padding: 14px 16px; background: #f7f9f9; color: #647781; font-size: 11px; font-weight: 700; letter-spacing: .035em; }
+.real-app .main-content table td { padding: 15px 16px; color: #344b57; border-bottom: 1px solid #edf1f2; font-size: 13px; }
+.real-app .main-content table tbody tr:hover { background: #f5f9f8; }
+.table-sort-button { color: inherit; font-weight: 700; }
+.reservation-search, .real-app input:not([type=checkbox]):not([type=radio]), .real-app select, .real-app textarea { border: 1px solid #d7e1e3; border-radius: 9px; background: #fff; color: #243c45; }
+.reservation-search input { border: 0 !important; box-shadow: none !important; }
+.reservation-new-button, .real-action-launch > button, .welcome-submit-button { min-height: 42px; padding: 10px 17px; border: 1px solid var(--hm-d-brand); border-radius: 9px; background: var(--hm-d-brand); color: #fff; font-size: 13px; font-weight: 700; box-shadow: none; }
+.reservation-new-button:hover:not(:disabled), .real-action-launch > button:hover:not(:disabled), .welcome-submit-button:hover:not(:disabled) { background: var(--hm-d-brand-dark); border-color: var(--hm-d-brand-dark); }
+.list-clear-button, .hm-res-pages button, .real-logout { min-height: 40px; border: 1px solid #dce5e5; border-radius: 9px; background: #fff; color: #36535c; font-size: 12px; font-weight: 650; }
+.list-clear-button:hover:not(:disabled), .hm-res-pages button:hover:not(:disabled) { background: #f2f7f5; }
+.hm-res-pages button[aria-current=page] { border-color: var(--hm-d-brand); background: var(--hm-d-brand); color: white; }
+.hm-res-row-actions button { border: 1px solid #e1e9e9; border-radius: 8px; background: #f9fbfa; color: #315f5c; }
+.rooms-subnav, .hm-sql-tabs { gap: 6px; border-bottom: 1px solid #dce6e5; }
+.rooms-subnav button, .hm-sql-tabs button { padding: 11px 14px; color: #687b84; font-weight: 650; }
+.rooms-subnav button.active, .hm-sql-tabs button.active, .hm-sql-tabs button[aria-selected=true] { color: var(--hm-d-brand); border-color: var(--hm-d-brand); background: #e7f2ef; }
+.real-dialog { max-width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid #dfe8e6; border-radius: 16px; background: #fff; box-shadow: 0 25px 80px #122a3540; }
+.real-dialog::backdrop { background: #10272db0; backdrop-filter: blur(2px); }
+.real-dialog input, .real-dialog select, .real-dialog textarea { min-height: 42px; }
+
+/* Consultas: editor de trabajo, biblioteca y resultados. */
+.hm-sql-panel { padding: 23px; margin-top: 16px; }
+.hm-sql-panel h2 { color: var(--hm-d-ink); font-size: 16px; }
+.hm-sql-panel h3 { margin-top: 26px; color: #31565a; font-size: 13px; }
+.hm-sql-panel p, .hm-sql-panel label, .hm-sql-panel small { color: var(--hm-d-muted); line-height: 1.55; }
+.hm-sql-panel label { display: grid; gap: 8px; font-size: 13px; font-weight: 650; }
+.hm-sql-panel select, .hm-sql-panel label > textarea { width: 100%; padding: 11px; }
+.hm-sql-editor { overflow: hidden; border: 1px solid #dae4e4; border-radius: 10px; background: #f7f9f9; }
+.hm-sql-editor > div { background: #eef3f2; color: #849593; }
+.hm-sql-editor textarea { border: 0 !important; border-radius: 0 !important; background: transparent !important; color: #1d3b40 !important; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.6; }
+.hm-sql-examples article { border: 1px solid #e0e9e7; border-radius: 11px; background: #fbfcfc; }
+.hm-sql-examples pre, .hm-sql-panel details pre { overflow-x: auto; border-radius: 8px; background: #edf3f1; color: #254b49; }
+.hm-sql-notice { border-radius: 10px; background: #eef6f3; color: #365f54; }
+
+/* Acceso conserva la animación y los dos flujos de autenticación. */
+.welcome-screen { background: radial-gradient(circle at 78% 18%, #254a4a 0, transparent 38%), linear-gradient(145deg, #102b30, #173b3b 65%, #22463e); }
+.welcome-brand-name, .welcome-access h1 { font-family: Inter, 'Segoe UI', sans-serif; letter-spacing: -.04em; }
+.welcome-brand-name span { color: #bedbd1; }
+.welcome-brand-mark { border-color: #d2ba86; background: #183936; box-shadow: none; }
+.welcome-brand-mark svg { stroke: #e2c891; }
+.welcome-eyebrow { color: #b9d4c9; }
+.welcome-option, .welcome-form-card { border: 1px solid #e1eae6; border-radius: 16px; box-shadow: 0 16px 50px #0a1e222b; }
+.welcome-option:hover { border-color: #abc9bc; box-shadow: 0 18px 50px #0a1e2233; }
+.welcome-option-icon--admin, .welcome-option-icon--employee { background: #e8f2ed; color: #346b5f; }
+.welcome-option-action, .welcome-option-action > span, .welcome-back-button { color: #28665d; }
+.welcome-form-card h1 { color: var(--hm-d-ink); }
+
+@media (max-width: 1500px) {
+  .hm-dash-grid--top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hm-dash-grid--top > :first-child { grid-column: span 2; }
+  .hm-dash-grid--top > .hm-dash-panel:last-child { grid-column: auto; }
+}
+@media (max-width: 900px) {
+  .real-app .real-sidebar { width: 100%; min-height: auto; }
+  .real-sidebar .sidebar-footer { margin-top: 16px; }
+  .hm-dash-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 650px) {
+  .hm-dashboard, .rooms-modern-section, .reservations-section, .hm-gestion, .hm-sql { padding: 24px 16px 36px; }
+  .real-app .real-topbar { padding: 13px 16px; }
+  .real-source { padding-inline: 16px; }
+  .hm-dash-welcome, .reservations-heading { align-items: flex-start; flex-wrap: wrap; }
+  .hm-dash-grid, .hm-dash-grid--top { grid-template-columns: minmax(0, 1fr); }
+  .hm-dash-grid--top > :first-child { grid-column: auto; }
+  .hm-dash-card, .hm-dash-card--compact { min-height: 120px; }
+  .hm-sql-panel { padding: 17px; }
+  .real-app .main-content table th, .real-app .main-content table td { padding: 12px; }
+  .welcome-options { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .real-app *, .welcome-screen * { transition-duration: .01ms !important; scroll-behavior: auto !important; } }
